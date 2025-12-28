@@ -11,7 +11,7 @@ interface ChainSelectorProps {
 }
 
 export default function ChainSelector({ onSelectChain, disabled = false }: ChainSelectorProps) {
-  const chains: Array<'ethereum' | 'solana' | 'bitcoin' | 'movement'> = ['ethereum', 'solana', 'bitcoin', 'movement'];
+  const chains: Array<'ethereum' | 'solana' | 'bitcoin' | 'movement' | 'casper'> = ['ethereum', 'solana', 'bitcoin', 'movement', 'casper'];
 
   return (
     <div className="space-y-3">

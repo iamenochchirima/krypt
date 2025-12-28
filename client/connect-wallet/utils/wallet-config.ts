@@ -3,6 +3,7 @@ import {
   SolanaWalletType,
   BitcoinWalletType,
   MovementWalletType,
+  CasperWalletType,
 } from '../types';
 
 export interface WalletConfig {
@@ -137,6 +138,20 @@ export const MOVEMENT_WALLETS: Record<MovementWalletType, WalletConfig> = {
   },
 };
 
+// Casper wallet configurations
+export const CASPER_WALLETS: Record<CasperWalletType, WalletConfig> = {
+  'casper-wallet': {
+    name: 'Casper Wallet',
+    icon: '/placeholder-logo.svg',
+    description: 'Official Casper wallet extension',
+  },
+  'casper-signer': {
+    name: 'Casper Signer',
+    icon: '/placeholder-logo.svg',
+    description: 'Casper desktop signer app',
+  },
+};
+
 // Chain configurations
 export interface ChainConfig {
   name: string;
@@ -144,7 +159,7 @@ export interface ChainConfig {
   description: string;
 }
 
-export const CHAIN_CONFIGS: Record<'ethereum' | 'solana' | 'bitcoin' | 'movement', ChainConfig> = {
+export const CHAIN_CONFIGS: Record<'ethereum' | 'solana' | 'bitcoin' | 'movement' | 'casper', ChainConfig> = {
   ethereum: {
     name: 'Ethereum',
     icon: '/wallets/etherium.png',
@@ -164,5 +179,10 @@ export const CHAIN_CONFIGS: Record<'ethereum' | 'solana' | 'bitcoin' | 'movement
     name: 'Movement',
     icon: '/placeholder-logo.svg',
     description: 'Connect Movement wallets',
+  },
+  casper: {
+    name: 'Casper',
+    icon: '/placeholder-logo.svg',
+    description: 'Connect Casper wallets',
   },
 };

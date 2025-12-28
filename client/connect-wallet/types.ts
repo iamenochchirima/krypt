@@ -1,5 +1,5 @@
 // Chain types
-export type Chain = 'ethereum' | 'solana' | 'bitcoin' | 'movement' | null;
+export type Chain = 'ethereum' | 'solana' | 'bitcoin' | 'movement' | 'casper' | null;
 
 // Wallet type definitions by chain
 export type EthereumWalletType =
@@ -32,7 +32,11 @@ export type MovementWalletType =
   | 'pontem'
   | 'fewcha';
 
-export type WalletType = EthereumWalletType | SolanaWalletType | BitcoinWalletType | MovementWalletType;
+export type CasperWalletType =
+  | 'casper-wallet'
+  | 'casper-signer';
+
+export type WalletType = EthereumWalletType | SolanaWalletType | BitcoinWalletType | MovementWalletType | CasperWalletType;
 
 // Main wallet state interface
 export interface WalletState {
@@ -64,6 +68,7 @@ export interface WalletConnectionContextType {
   isSolanaConnected: boolean;
   isBitcoinConnected: boolean;
   isMovementConnected: boolean;
+  isCasperConnected: boolean;
 }
 
 // Initial wallet state

@@ -102,6 +102,7 @@ export function WalletConnectionProvider({ children }: WalletConnectionProviderP
   const isSolanaConnected = walletState.isConnected && walletState.chain === 'solana';
   const isBitcoinConnected = walletState.isConnected && walletState.chain === 'bitcoin';
   const isMovementConnected = walletState.isConnected && walletState.chain === 'movement';
+  const isCasperConnected = walletState.isConnected && walletState.chain === 'casper';
 
   const value: WalletConnectionContextType = {
     walletState,
@@ -116,6 +117,7 @@ export function WalletConnectionProvider({ children }: WalletConnectionProviderP
     isSolanaConnected,
     isBitcoinConnected,
     isMovementConnected,
+    isCasperConnected,
   };
 
   return (

@@ -26,6 +26,7 @@ export { useWalletConnection } from './hooks/useWalletConnection';
 export { useEthereumWallet } from './hooks/useEthereumWallet';
 export { useSolanaWallet } from './hooks/useSolanaWallet';
 export { useBitcoinWallet } from './hooks/useBitcoinWallet';
+export { useCasperWallet } from './hooks/useCasperWallet';
 
 // Main modal component
 export { default as WalletModal } from './components/wallet-modal';
@@ -39,6 +40,7 @@ export type {
   EthereumWalletType,
   SolanaWalletType,
   BitcoinWalletType,
+  CasperWalletType,
 } from './types';
 
 // Utility exports (optional, for advanced usage)
@@ -52,5 +54,6 @@ export {
   ETHEREUM_WALLETS,
   SOLANA_WALLETS,
   BITCOIN_WALLETS,
+  CASPER_WALLETS,
   CHAIN_CONFIGS,
 } from './utils/wallet-config';

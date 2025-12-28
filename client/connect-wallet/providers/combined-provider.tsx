@@ -4,11 +4,13 @@ import { ReactNode } from 'react';
 import { EthereumProvider } from './ethereum-provider';
 import { SolanaProvider } from './solana-provider';
 import { MovementProvider } from './movement-provider';
+import { CasperProvider } from './casper-provider';
 import { WalletConnectionProvider } from '../context/wallet-connection-context';
 import { useEthereumWallet } from '../hooks/useEthereumWallet';
 import { useSolanaWallet } from '../hooks/useSolanaWallet';
 import { useBitcoinWallet } from '../hooks/useBitcoinWallet';
 import { useMovementWallet } from '../hooks/useMovementWallet';
+import { useCasperWallet } from '../hooks/useCasperWallet';
 
 interface CombinedWalletProviderProps {
   children: ReactNode;
@@ -23,6 +25,7 @@ function WalletHookInitializer({ children }: { children: ReactNode }) {
   useSolanaWallet();
   useBitcoinWallet();
   useMovementWallet();
+  useCasperWallet();
 
   return <>{children}</>;
 }
@@ -34,19 +37,22 @@ function WalletHookInitializer({ children }: { children: ReactNode }) {
  * - EthereumProvider (Wagmi + QueryClient)
  *   - SolanaProvider (Solana wallet adapter)
  *     - MovementProvider (Aptos/Movement wallet adapter)
- *       - WalletConnectionProvider (Wallet state management)
- *         - WalletHookInitializer (Activates all wallet hooks)
+ *       - CasperProvider (Casper wallet - pass-through)
+ *         - WalletConnectionProvider (Wallet state management)
+ *           - WalletHookInitializer (Activates all wallet hooks)
  */
 export function CombinedWalletProvider({ children }: CombinedWalletProviderProps) {
   return (
     <EthereumProvider>
       <SolanaProvider>
         <MovementProvider>
-          <WalletConnectionProvider>
-            <WalletHookInitializer>
-              {children}
-            </WalletHookInitializer>
-          </WalletConnectionProvider>
+          <CasperProvider>
+            <WalletConnectionProvider>
+              <WalletHookInitializer>
+                {children}
+              </WalletHookInitializer>
+            </WalletConnectionProvider>
+          </CasperProvider>
         </MovementProvider>
       </SolanaProvider>
     </EthereumProvider>

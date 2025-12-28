@@ -9,6 +9,7 @@ import EthereumConnector from "./wallet-connectors/ethereum-connector";
 import SolanaConnector from "./wallet-connectors/solana-connector";
 import BitcoinConnector from "./wallet-connectors/bitcoin-connector";
 import MovementConnector from "./wallet-connectors/movement-connector";
+import CasperConnector from "./wallet-connectors/casper-connector";
 import { useWalletConnection } from "../hooks/useWalletConnection";
 
 interface WalletModalProps {
@@ -139,6 +140,9 @@ export default function WalletModal({ isOpen, onClose }: WalletModalProps) {
             )}
             {selectedChain === 'movement' && (
               <MovementConnector onBack={handleBack} />
+            )}
+            {selectedChain === 'casper' && (
+              <CasperConnector onBack={handleBack} />
             )}
 
             {connecting && (
