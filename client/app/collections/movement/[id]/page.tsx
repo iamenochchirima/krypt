@@ -32,9 +32,12 @@ import type { Collection as CanisterCollection } from "@/declarations/marketplac
 import { toast } from "sonner"
 import { useWalletConnection } from "@/connect-wallet"
 import { useWallet } from "@aptos-labs/wallet-adapter-react"
-import { getModuleId, MOVEMENT_NETWORK } from "@/constants/movement"
+import { getModuleId, MOVEMENT_NETWORK, getCurrentNetwork } from "@/constants/movement"
 import ListingModal from "./components/listing-modal"
+import BuyModal from "./components/buy-modal"
+import CancelListingModal from "./components/cancel-listing-modal"
 import { Aptos, AptosConfig, Network } from "@aptos-labs/ts-sdk"
+import { getAllListings, buildBuyTransaction, buildCancelListingTransaction, verifyListingExists, verifyAccountExists, type ListingData } from "@/lib/movement/marketplace"
 
 export default function MovementCollectionPage() {
   const params = useParams()
@@ -55,12 +58,57 @@ export default function MovementCollectionPage() {
   const [nftMetadata, setNftMetadata] = useState<Map<string, any>>(new Map())
   const [selectedNFT, setSelectedNFT] = useState<any>(null)
   const [isListingModalOpen, setIsListingModalOpen] = useState(false)
+  const [listings, setListings] = useState<Map<string, ListingData>>(new Map())
+  const [isLoadingListings, setIsLoadingListings] = useState(false)
+  const [selectedBuyNFT, setSelectedBuyNFT] = useState<any>(null)
+  const [selectedBuyListing, setSelectedBuyListing] = useState<ListingData | null>(null)
+  const [isBuyModalOpen, setIsBuyModalOpen] = useState(false)
+  const [selectedCancelNFT, setSelectedCancelNFT] = useState<any>(null)
+  const [selectedCancelListing, setSelectedCancelListing] = useState<ListingData | null>(null)
+  const [isCancelModalOpen, setIsCancelModalOpen] = useState(false)
 
   useEffect(() => {
     if (collectionId) {
       loadCollectionData()
     }
   }, [collectionId])
+
+  const fetchListings = async (currentNfts?: any[]) => {
+    if (!collectionAddress) return
+
+    const nftsToMatch = currentNfts || nfts
+    if (nftsToMatch.length === 0) return
+
+    setIsLoadingListings(true)
+    try {
+      const listingData = await getAllListings(collectionAddress, getCurrentNetwork())
+
+      const listingsMap = new Map<string, ListingData>()
+
+      for (const listing of listingData) {
+        const matchedNFT = nftsToMatch.find(nft =>
+          nft.owner_address?.toLowerCase() === listing.listing_address?.toLowerCase()
+        )
+
+        if (matchedNFT) {
+          listingsMap.set(matchedNFT.token_data_id, {
+            ...listing,
+            token_data_id: matchedNFT.token_data_id,
+          })
+        }
+      }
+
+      setListings(listingsMap)
+    } catch (error) {
+      console.error("Failed to fetch listings:", error)
+    } finally {
+      setIsLoadingListings(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchListings()
+  }, [collectionAddress, nfts])
 
   const loadCollectionData = async () => {
     try {
@@ -102,7 +150,7 @@ export default function MovementCollectionPage() {
             const addr = await getCollectionAddress(
               creatorAddr,
               collectionData.name,
-              "testnet"
+              getCurrentNetwork()
             )
             setCollectionAddress(addr)
             await fetchOnChainData(addr)
@@ -122,16 +170,16 @@ export default function MovementCollectionPage() {
 
   const fetchOnChainData = async (address: string) => {
     try {
-      const data = await getCollectionByAddress(address, "testnet")
+      const data = await getCollectionByAddress(address, getCurrentNetwork())
       setOnChainData(data)
     } catch (error) {
       console.error("Failed to fetch on-chain data:", error)
     }
   }
 
-  const fetchNFTs = async (address: string) => {
+  const fetchNFTs = async (address: string, useCache = true) => {
     try {
-      const nftData = await getNFTsByCollection(address, "testnet")
+      const nftData = await getNFTsByCollection(address, getCurrentNetwork(), useCache)
       setNfts(nftData)
 
       nftData.forEach((nft: any) => {
@@ -172,7 +220,7 @@ export default function MovementCollectionPage() {
 
       const transaction = {
         data: {
-          function: `${getModuleId("marketplace", "testnet")}::list_with_fixed_price`,
+          function: `${getModuleId("marketplace", getCurrentNetwork())}::list_with_fixed_price`,
           typeArguments: ["0x1::aptos_coin::AptosCoin"],
           functionArguments: [
             selectedNFT.token_data_id,
@@ -181,46 +229,30 @@ export default function MovementCollectionPage() {
         },
       }
 
-      // Submit transaction and get response
       const response = await signAndSubmitTransaction(transaction)
 
-      console.log("=== NFT Listing Transaction ===")
-      console.log("Transaction Hash:", response.hash)
-      console.log("NFT Token ID:", selectedNFT.token_data_id)
-      console.log("Price (MOVE):", price)
-      console.log("Price (Octas):", priceInOctas)
-      console.log("Duration (days):", duration)
-
-      // Wait for transaction confirmation
       toast.info("Transaction submitted. Waiting for confirmation...")
 
-      // Initialize Aptos client
       const aptosConfig = new AptosConfig({
         network: Network.CUSTOM,
-        fullnode: MOVEMENT_NETWORK.testnet.rpcUrl,
+        fullnode: MOVEMENT_NETWORK[getCurrentNetwork()].rpcUrl,
       })
       const aptos = new Aptos(aptosConfig)
 
-      // Try to wait for transaction confirmation
       try {
-        const txResult = await aptos.waitForTransaction({
+        await aptos.waitForTransaction({
           transactionHash: response.hash,
         })
-        console.log("Transaction confirmed:", txResult)
-        console.log("Transaction success:", txResult.success)
       } catch (waitError) {
         console.warn("Could not wait for transaction confirmation:", waitError)
-        console.log("Transaction was submitted with hash:", response.hash)
-        // Continue anyway - the transaction was submitted successfully
       }
 
-      // Show success toast with transaction link
       toast.success(
         <div className="flex flex-col gap-2">
           <p>NFT listed successfully!</p>
           <p className="text-sm">{selectedNFT.current_token_data?.token_name || "NFT"} • {price} MOVE</p>
           <a
-            href={`https://explorer.movementnetwork.xyz/txn/${response.hash}?network=testnet`}
+            href={`${MOVEMENT_NETWORK[getCurrentNetwork()].explorerUrl}/txn/${response.hash}`}
             target="_blank"
             rel="noopener noreferrer"
             className="text-xs underline hover:no-underline"
@@ -228,12 +260,23 @@ export default function MovementCollectionPage() {
             View on Explorer →
           </a>
         </div>,
-        {
-          duration: 10000,
-        }
+        { duration: 10000 }
       )
 
-      console.log("=== Listing Complete ===")
+      await new Promise(resolve => setTimeout(resolve, 2000))
+
+      try {
+        const nftData = await getNFTsByCollection(collectionAddress, getCurrentNetwork(), false)
+        setNfts(nftData)
+        nftData.forEach((nft: any) => {
+          fetchNFTMetadata(nft)
+        })
+
+        await new Promise(resolve => setTimeout(resolve, 1000))
+        await fetchListings(nftData)
+      } catch (error) {
+        console.error("Failed to refresh data:", error)
+      }
     } catch (error) {
       console.error("Failed to list NFT:", error)
       toast.error("Failed to list NFT")
@@ -241,10 +284,275 @@ export default function MovementCollectionPage() {
     }
   }
 
+  const handleCancelListing = async (nft: any, listingData: ListingData) => {
+    const listingStillExists = await verifyListingExists(listingData.listing_address, getCurrentNetwork())
+
+    if (!listingStillExists) {
+      toast.error("This listing is no longer valid. It may have already been sold or cancelled.")
+
+      const updatedListings = new Map(listings)
+      updatedListings.delete(nft.token_data_id)
+      setListings(updatedListings)
+
+      await fetchNFTs(collectionAddress)
+
+      return
+    }
+
+    setSelectedCancelNFT(nft)
+    setSelectedCancelListing(listingData)
+    setIsCancelModalOpen(true)
+  }
+
+  const handleConfirmCancel = async () => {
+    if (!selectedCancelNFT || !selectedCancelListing || !walletState.address || !signAndSubmitTransaction) return
+
+    try {
+      toast.info("Cancelling listing...")
+
+      const transaction = buildCancelListingTransaction(
+        selectedCancelListing.listing_address,
+        getCurrentNetwork()
+      )
+
+      const response = await signAndSubmitTransaction(transaction)
+
+      toast.info("Transaction submitted. Waiting for confirmation...")
+
+      const aptosConfig = new AptosConfig({
+        network: Network.CUSTOM,
+        fullnode: MOVEMENT_NETWORK[getCurrentNetwork()].rpcUrl,
+      })
+      const aptos = new Aptos(aptosConfig)
+
+      try {
+        await aptos.waitForTransaction({
+          transactionHash: response.hash,
+        })
+      } catch (waitError) {
+        console.warn("Could not wait for confirmation:", waitError)
+      }
+
+      toast.success(
+        <div className="flex flex-col gap-2">
+          <p>Listing cancelled successfully!</p>
+          <p className="text-sm">{selectedCancelNFT.current_token_data?.token_name || "NFT"}</p>
+          <a
+            href={`${MOVEMENT_NETWORK[getCurrentNetwork()].explorerUrl}/txn/${response.hash}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs underline hover:no-underline"
+          >
+            View on Explorer →
+          </a>
+        </div>,
+        { duration: 10000 }
+      )
+
+      await new Promise(resolve => setTimeout(resolve, 2000))
+
+      try {
+        const nftData = await getNFTsByCollection(collectionAddress, getCurrentNetwork(), false)
+        setNfts(nftData)
+        nftData.forEach((nft: any) => {
+          fetchNFTMetadata(nft)
+        })
+
+        await new Promise(resolve => setTimeout(resolve, 1000))
+        await fetchListings(nftData)
+      } catch (error) {
+        console.error("Failed to refresh data:", error)
+      }
+    } catch (error: any) {
+      console.error("Failed to cancel listing:", error)
+
+      let errorMessage = "Failed to cancel listing"
+
+      if (error?.message) {
+        if (error.message.includes("Account not found")) {
+          errorMessage = "This listing is no longer valid. It may have already been sold or cancelled."
+
+          const updatedListings = new Map(listings)
+          updatedListings.delete(selectedCancelNFT.token_data_id)
+          setListings(updatedListings)
+        } else if (error.message.includes("rejected") || error.message.includes("declined")) {
+          errorMessage = "Transaction was rejected by user"
+        } else {
+          errorMessage = `Cancel failed: ${error.message}`
+        }
+      }
+
+      toast.error(errorMessage)
+      throw error
+    }
+  }
+
+  const handleOpenBuyModal = async (nft: any, listingData: ListingData) => {
+    const listingStillExists = await verifyListingExists(listingData.listing_address, getCurrentNetwork())
+
+    if (!listingStillExists) {
+      toast.error("This NFT is no longer available for purchase. It may have been sold or delisted.")
+
+      const updatedListings = new Map(listings)
+      updatedListings.delete(nft.token_data_id)
+      setListings(updatedListings)
+
+      await fetchNFTs(collectionAddress)
+
+      return
+    }
+
+    setSelectedBuyNFT(nft)
+    setSelectedBuyListing(listingData)
+    setIsBuyModalOpen(true)
+  }
+
+  const handleConfirmBuy = async () => {
+    if (!selectedBuyNFT || !selectedBuyListing || !walletState.address || !signAndSubmitTransaction) return
+
+    try {
+      const priceInMove = (Number(selectedBuyListing.price) / 100000000).toFixed(2)
+
+      toast.info("Verifying listing...")
+
+      const listingExists = await verifyListingExists(selectedBuyListing.listing_address, getCurrentNetwork())
+
+      if (!listingExists) {
+        toast.error("This NFT is no longer available for purchase. It may have been sold or delisted.")
+
+        const updatedListings = new Map(listings)
+        updatedListings.delete(selectedBuyNFT.token_data_id)
+        setListings(updatedListings)
+
+        await fetchNFTs(collectionAddress)
+
+        return
+      }
+
+      toast.info("Verifying account...")
+
+      const accountExists = await verifyAccountExists(walletState.address, getCurrentNetwork())
+
+      if (!accountExists) {
+        toast.error(
+          <div className="flex flex-col gap-2">
+            <p className="font-semibold">Account Not Found On-Chain</p>
+            <p className="text-sm">Your wallet address is new and needs to be initialized. Please add some MOVE tokens to your account first.</p>
+            <a
+              href="https://faucet.movementnetwork.xyz/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs underline hover:no-underline"
+            >
+              Get MOVE from Faucet →
+            </a>
+          </div>,
+          { duration: 10000 }
+        )
+        return
+      }
+
+      toast.info(`Purchasing ${selectedBuyNFT.current_token_data?.token_name || "NFT"} for ${priceInMove} MOVE...`)
+
+      const transaction = buildBuyTransaction(
+        selectedBuyListing.listing_address,
+        selectedBuyListing.price.toString(),
+        getCurrentNetwork()
+      )
+
+      const response = await signAndSubmitTransaction(transaction)
+
+      toast.info("Transaction submitted. Waiting for confirmation...")
+
+      const aptosConfig = new AptosConfig({
+        network: Network.CUSTOM,
+        fullnode: MOVEMENT_NETWORK[getCurrentNetwork()].rpcUrl,
+      })
+      const aptos = new Aptos(aptosConfig)
+
+      try {
+        await aptos.waitForTransaction({
+          transactionHash: response.hash,
+        })
+      } catch (waitError) {
+        console.warn("Could not wait for confirmation:", waitError)
+      }
+
+      toast.success(
+        <div className="flex flex-col gap-2">
+          <p>Purchase successful!</p>
+          <p className="text-sm">{selectedBuyNFT.current_token_data?.token_name || "NFT"} • {priceInMove} MOVE</p>
+          <a
+            href={`${MOVEMENT_NETWORK[getCurrentNetwork()].explorerUrl}/txn/${response.hash}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs underline hover:no-underline"
+          >
+            View on Explorer →
+          </a>
+        </div>,
+        { duration: 10000 }
+      )
+
+      await new Promise(resolve => setTimeout(resolve, 2000))
+
+      try {
+        const nftData = await getNFTsByCollection(collectionAddress, getCurrentNetwork(), false)
+        setNfts(nftData)
+        nftData.forEach((nft: any) => {
+          fetchNFTMetadata(nft)
+        })
+
+        await new Promise(resolve => setTimeout(resolve, 1000))
+        await fetchListings(nftData)
+      } catch (error) {
+        console.error("Failed to refresh data:", error)
+      }
+    } catch (error: any) {
+      console.error("Failed to purchase NFT:", error)
+
+      let errorMessage = "Failed to purchase NFT"
+
+      if (error?.message) {
+        if (error.message.includes("INSUFFICIENT_BALANCE") || error.message.includes("insufficient")) {
+          errorMessage = "Insufficient balance. Please add more MOVE to your wallet."
+        } else if (error.message.includes("Account not found")) {
+          toast.error(
+            <div className="flex flex-col gap-2">
+              <p className="font-semibold">Account Not Found On-Chain</p>
+              <p className="text-sm">Your wallet address is new and needs to be initialized. Please add some MOVE tokens to your account first.</p>
+              <a
+                href="https://faucet.movementnetwork.xyz/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs underline hover:no-underline"
+              >
+                Get MOVE from Faucet →
+              </a>
+            </div>,
+            { duration: 10000 }
+          )
+          throw error
+        } else if (error.message.includes("rejected") || error.message.includes("declined")) {
+          errorMessage = "Transaction was rejected by user"
+        } else {
+          errorMessage = `Purchase failed: ${error.message}`
+        }
+      }
+
+      toast.error(errorMessage)
+      throw error
+    }
+  }
+
   const filteredNFTs = useMemo(() => {
     let filtered = nfts
 
-    if (statusFilter === "owned") {
+    if (statusFilter === "listed") {
+      filtered = filtered.filter(nft => listings.has(nft.token_data_id))
+    } else if (statusFilter === "unlisted") {
+      filtered = filtered.filter(nft => !listings.has(nft.token_data_id))
+    } else if (statusFilter === "owned") {
       if (walletState.isConnected && walletState.chain === "movement" && walletState.address) {
         filtered = filtered.filter(nft =>
           nft.owner_address?.toLowerCase() === walletState.address?.toLowerCase()
@@ -261,8 +569,35 @@ export default function MovementCollectionPage() {
       )
     }
 
+    if (sortBy === "price-low" || sortBy === "price-high") {
+      filtered = [...filtered].sort((a, b) => {
+        const priceA = listings.get(a.token_data_id)?.price || BigInt(0)
+        const priceB = listings.get(b.token_data_id)?.price || BigInt(0)
+
+        if (sortBy === "price-low") {
+          return Number(priceA - priceB)
+        } else {
+          return Number(priceB - priceA)
+        }
+      })
+    }
+
     return filtered
-  }, [nfts, searchQuery, statusFilter, walletState.isConnected, walletState.chain, walletState.address])
+  }, [nfts, searchQuery, statusFilter, sortBy, walletState.isConnected, walletState.chain, walletState.address, listings])
+
+  const floorPrice = useMemo(() => {
+    if (listings.size === 0) return "0.00 MOVE"
+
+    const prices = Array.from(listings.values()).map(l => Number(l.price))
+    const minPrice = Math.min(...prices)
+    return `${(minPrice / 100000000).toFixed(2)} MOVE`
+  }, [listings])
+
+  const listedCount = listings.size
+  const totalVolume = onChainData?.total_minted_v2 || 0
+  const items = onChainData?.current_supply || Number(collection?.total_supply || 0)
+  const maxSupply = onChainData?.max_supply || Number(collection?.total_supply || 0)
+  const uniqueOwners = new Set(nfts.map(nft => nft.owner_address)).size
 
   if (isLoading) {
     return (
@@ -287,12 +622,6 @@ export default function MovementCollectionPage() {
       </div>
     )
   }
-
-  const floorPrice = onChainData?.current_supply ? "0.00 MOVE" : "0.00 MOVE"
-  const totalVolume = onChainData?.total_minted_v2 || 0
-  const items = onChainData?.current_supply || Number(collection.total_supply)
-  const maxSupply = onChainData?.max_supply || Number(collection.total_supply)
-  const uniqueOwners = new Set(nfts.map(nft => nft.owner_address)).size
 
   return (
     <div className="container mx-auto px-4 py-24">
@@ -387,7 +716,7 @@ export default function MovementCollectionPage() {
         </Card>
         <Card className="p-4">
           <div className="text-sm text-muted-foreground mb-1">Listed</div>
-          <div className="text-2xl font-bold">{Number(collection.listed_count).toLocaleString()}</div>
+          <div className="text-2xl font-bold">{listedCount.toLocaleString()}</div>
           <div className="text-xs text-muted-foreground">for sale</div>
         </Card>
       </div>
@@ -473,10 +802,19 @@ export default function MovementCollectionPage() {
               const imageUrl = metadata?.image || metadata?.image_url || "/placeholder.svg?height=300&width=300"
               const traits = metadata?.attributes?.length || 0
 
+              const listingData = listings.get(nft.token_data_id)
+              const isListed = !!listingData
+              const listingPrice = listingData?.price
+                ? (Number(listingData.price) / 100000000).toFixed(2)
+                : null
+
               const isOwnedByUser = walletState.isConnected &&
                 walletState.chain === "movement" &&
                 walletState.address &&
-                nft.owner_address?.toLowerCase() === walletState.address.toLowerCase()
+                (
+                  nft.owner_address?.toLowerCase() === walletState.address.toLowerCase() ||
+                  (isListed && listingData.seller_address?.toLowerCase() === walletState.address.toLowerCase())
+                )
 
               return (
                 <Card key={nft.token_data_id} className="group overflow-hidden transition-all hover:shadow-lg">
@@ -514,25 +852,57 @@ export default function MovementCollectionPage() {
 
                     <div className="flex items-center justify-between mb-3">
                       <div>
-                        <div className="text-xs text-muted-foreground">Owner</div>
-                        <div className="text-xs font-mono">
-                          {nft.owner_address.substring(0, 6)}...{nft.owner_address.substring(nft.owner_address.length - 4)}
+                        <div className="text-xs text-muted-foreground">
+                          {isListed ? "Price" : "Owner"}
+                        </div>
+                        <div className="font-bold">
+                          {isListed ? (
+                            `${listingPrice} MOVE`
+                          ) : (
+                            <span className="text-xs font-mono">
+                              {nft.owner_address.substring(0, 6)}...{nft.owner_address.substring(nft.owner_address.length - 4)}
+                            </span>
+                          )}
                         </div>
                       </div>
-                      <div className="text-right">
-                        <div className="text-xs text-muted-foreground">Amount</div>
-                        <div className="text-sm">{nft.amount}</div>
-                      </div>
+                      {isListed && (
+                        <Badge variant="default" className="bg-green-600">
+                          For Sale
+                        </Badge>
+                      )}
                     </div>
 
                     {isOwnedByUser ? (
-                      <Button className="w-full" size="sm" onClick={() => handleListNFT(nft)}>
-                        List for Sale
-                      </Button>
+                      isListed ? (
+                        <div className="flex gap-2">
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={() => handleCancelListing(nft, listingData)}
+                            className="flex-1"
+                          >
+                            Cancel Listing
+                          </Button>
+                        </div>
+                      ) : (
+                        <Button size="sm" onClick={() => handleListNFT(nft)} className="w-full">
+                          List for Sale
+                        </Button>
+                      )
                     ) : (
-                      <Button className="w-full" variant="outline" size="sm">
-                        View Details
-                      </Button>
+                      isListed ? (
+                        <Button
+                          size="sm"
+                          onClick={() => handleOpenBuyModal(nft, listingData)}
+                          className="w-full"
+                        >
+                          Buy Now • {listingPrice} MOVE
+                        </Button>
+                      ) : (
+                        <Button variant="outline" size="sm" className="w-full">
+                          View Details
+                        </Button>
+                      )
                     )}
                   </CardContent>
                 </Card>
@@ -576,6 +946,43 @@ export default function MovementCollectionPage() {
             collection: collection?.name || "Collection"
           }}
           onList={handleListSubmit}
+        />
+      )}
+
+      {selectedBuyNFT && selectedBuyListing && (
+        <BuyModal
+          isOpen={isBuyModalOpen}
+          onClose={() => {
+            setIsBuyModalOpen(false)
+            setSelectedBuyNFT(null)
+            setSelectedBuyListing(null)
+          }}
+          nft={{
+            name: selectedBuyNFT.current_token_data?.token_name || "Unnamed NFT",
+            image: nftMetadata.get(selectedBuyNFT.token_data_id)?.image || "/placeholder.svg",
+            collection: collection?.name || "Collection"
+          }}
+          price={(Number(selectedBuyListing.price) / 100000000).toFixed(2)}
+          isWalletConnected={walletState.isConnected && walletState.chain === "movement"}
+          onConfirm={handleConfirmBuy}
+        />
+      )}
+
+      {selectedCancelNFT && selectedCancelListing && (
+        <CancelListingModal
+          isOpen={isCancelModalOpen}
+          onClose={() => {
+            setIsCancelModalOpen(false)
+            setSelectedCancelNFT(null)
+            setSelectedCancelListing(null)
+          }}
+          nft={{
+            name: selectedCancelNFT.current_token_data?.token_name || "Unnamed NFT",
+            image: nftMetadata.get(selectedCancelNFT.token_data_id)?.image || "/placeholder.svg",
+            collection: collection?.name || "Collection"
+          }}
+          price={(Number(selectedCancelListing.price) / 100000000).toFixed(2)}
+          onConfirm={handleConfirmCancel}
         />
       )}
     </div>

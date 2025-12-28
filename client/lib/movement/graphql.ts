@@ -1,4 +1,4 @@
-import { MOVEMENT_NETWORK } from "@/constants/movement"
+import { MOVEMENT_NETWORK, getCurrentNetwork } from "@/constants/movement"
 
 const MOVEMENT_GRAPHQL_ENDPOINTS = {
   testnet: "https://indexer.testnet.movementnetwork.xyz/v1/graphql",
@@ -37,9 +37,10 @@ function setCachedData<T>(key: string, data: T): void {
 export async function queryMovementGraphQL(
   query: string,
   variables: Record<string, any> = {},
-  network: "testnet" | "mainnet" = "testnet"
+  network?: "testnet" | "mainnet"
 ): Promise<any> {
-  const endpoint = MOVEMENT_GRAPHQL_ENDPOINTS[network]
+  const activeNetwork = network ?? getCurrentNetwork();
+  const endpoint = MOVEMENT_GRAPHQL_ENDPOINTS[activeNetwork]
 
   const response = await fetch(endpoint, {
     method: 'POST',
@@ -64,10 +65,11 @@ export async function queryMovementGraphQL(
 
 export async function getCollectionByAddress(
   collectionAddress: string,
-  network: "testnet" | "mainnet" = "testnet",
+  network?: "testnet" | "mainnet",
   useCache = true
 ): Promise<any> {
-  const cacheKey = `collection_${collectionAddress}_${network}`
+  const activeNetwork = network ?? getCurrentNetwork();
+  const cacheKey = `collection_${collectionAddress}_${activeNetwork}`
 
   if (useCache) {
     const cached = getCachedData<any>(cacheKey)
@@ -95,7 +97,7 @@ export async function getCollectionByAddress(
     }
   `
 
-  const data = await queryMovementGraphQL(query, { collectionId: collectionAddress }, network)
+  const data = await queryMovementGraphQL(query, { collectionId: collectionAddress }, activeNetwork)
   const collection = data.current_collections_v2?.[0] || null
 
   if (collection) {
@@ -107,10 +109,11 @@ export async function getCollectionByAddress(
 
 export async function getCollectionsByCreator(
   creatorAddress: string,
-  network: "testnet" | "mainnet" = "testnet",
+  network?: "testnet" | "mainnet",
   useCache = true
 ): Promise<any[]> {
-  const cacheKey = `collections_creator_${creatorAddress}_${network}`
+  const activeNetwork = network ?? getCurrentNetwork();
+  const cacheKey = `collections_creator_${creatorAddress}_${activeNetwork}`
 
   if (useCache) {
     const cached = getCachedData<any[]>(cacheKey)
@@ -138,7 +141,7 @@ export async function getCollectionsByCreator(
     }
   `
 
-  const data = await queryMovementGraphQL(query, { creatorAddress }, network)
+  const data = await queryMovementGraphQL(query, { creatorAddress }, activeNetwork)
   const collections = data.current_collections_v2 || []
 
   if (collections.length > 0) {
@@ -150,10 +153,11 @@ export async function getCollectionsByCreator(
 
 export async function getNFTsByCollection(
   collectionId: string,
-  network: "testnet" | "mainnet" = "testnet",
+  network?: "testnet" | "mainnet",
   useCache = true
 ): Promise<any[]> {
-  const cacheKey = `nfts_collection_${collectionId}_${network}`
+  const activeNetwork = network ?? getCurrentNetwork();
+  const cacheKey = `nfts_collection_${collectionId}_${activeNetwork}`
 
   if (useCache) {
     const cached = getCachedData<any[]>(cacheKey)
@@ -189,7 +193,7 @@ export async function getNFTsByCollection(
     }
   `
 
-  const data = await queryMovementGraphQL(query, { collectionId }, network)
+  const data = await queryMovementGraphQL(query, { collectionId }, activeNetwork)
   const nfts = data.current_token_ownerships_v2 || []
 
   if (nfts.length > 0) {
@@ -202,10 +206,11 @@ export async function getNFTsByCollection(
 export async function getNFTsByOwner(
   ownerAddress: string,
   collectionId?: string,
-  network: "testnet" | "mainnet" = "testnet",
+  network?: "testnet" | "mainnet",
   useCache = true
 ): Promise<any[]> {
-  const cacheKey = `nfts_owner_${ownerAddress}_${collectionId || 'all'}_${network}`
+  const activeNetwork = network ?? getCurrentNetwork();
+  const cacheKey = `nfts_owner_${ownerAddress}_${collectionId || 'all'}_${activeNetwork}`
 
   if (useCache) {
     const cached = getCachedData<any[]>(cacheKey)
@@ -245,7 +250,7 @@ export async function getNFTsByOwner(
     }
   `
 
-  const data = await queryMovementGraphQL(query, { where }, network)
+  const data = await queryMovementGraphQL(query, { where }, activeNetwork)
   const nfts = data.current_token_ownerships_v2 || []
 
   if (nfts.length > 0) {

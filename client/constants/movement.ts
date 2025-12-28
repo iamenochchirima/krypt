@@ -42,6 +42,15 @@ export const MOVEMENT_NETWORK = {
 
 export type MovementNetwork = "testnet" | "mainnet";
 
+export function getCurrentNetwork(): MovementNetwork {
+  const network = process.env.NEXT_PUBLIC_MOVEMENT_NETWORK as MovementNetwork;
+  if (network !== "testnet" && network !== "mainnet") {
+    console.warn(`Invalid NEXT_PUBLIC_MOVEMENT_NETWORK: ${network}. Defaulting to testnet.`);
+    return "testnet";
+  }
+  return network;
+}
+
 export function getModuleId(
   contract: "launchpad" | "marketplace",
   network: MovementNetwork = "testnet"
