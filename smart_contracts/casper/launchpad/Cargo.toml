@@ -1,0 +1,23 @@
+[package]
+name = "nft-launchpad"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+casper-contract = { workspace = true }
+casper-types = { workspace = true }
+casper-event-standard = { workspace = true }
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[[bin]]
+name = "nft_launchpad"
+path = "src/main.rs"
+test = false
+bench = false
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "z"
