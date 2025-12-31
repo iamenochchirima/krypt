@@ -80,23 +80,114 @@ pub fn distribute_payment(
     }
 }
 
-/// Transfer NFT from one account to another
-/// Note: This is a placeholder - actual implementation depends on CEP-78 contract
-pub fn transfer_nft(
-    _collection_hash: &casper_types::ContractHash,
-    _token_hash: &casper_types::Key,
-    _from: &AccountHash,
-    _to: &AccountHash,
+/// Verify NFT ownership
+pub fn verify_nft_ownership(
+    collection_hash: &casper_types::ContractHash,
+    token_id: u64,
+    expected_owner: &AccountHash,
 ) -> Result<(), Error> {
-    // TODO: Call CEP-78 contract's transfer entry point
-    // runtime::call_contract::<()>(
-    //     collection_hash,
-    //     "transfer",
-    //     runtime_args! {
-    //         "token_id" => token_hash,
-    //         "target" => to,
-    //     }
-    // );
+    use casper_types::runtime_args;
+
+    let owner: casper_types::Key = runtime::call_contract(
+        *collection_hash,
+        "owner_of",
+        runtime_args! {
+            "token_id" => token_id,
+        },
+    );
+
+    let owner_account = owner.into_account()
+        .ok_or(Error::NftTransferFailed)?;
+
+    if owner_account == *expected_owner {
+        Ok(())
+    } else {
+        Err(Error::NotAuthorized)
+    }
+}
+
+/// Check if marketplace is approved to transfer NFT
+pub fn is_approved_or_owner(
+    collection_hash: &casper_types::ContractHash,
+    token_id: u64,
+    operator: &casper_types::Key,
+    owner: &AccountHash,
+) -> Result<bool, Error> {
+    use casper_types::runtime_args;
+
+    // Check if operator is the owner
+    if let Some(operator_account) = operator.clone().into_account() {
+        if operator_account == *owner {
+            return Ok(true);
+        }
+    }
+
+    // Check if operator is approved for this specific token
+    let approved: Option<casper_types::Key> = runtime::call_contract(
+        *collection_hash,
+        "get_approved",
+        runtime_args! {
+            "token_id" => token_id,
+        },
+    );
+
+    if let Some(approved_key) = approved {
+        if approved_key == *operator {
+            return Ok(true);
+        }
+    }
+
+    // Check if operator has approval for all tokens
+    let is_approved_for_all: bool = runtime::call_contract(
+        *collection_hash,
+        "is_approved_for_all",
+        runtime_args! {
+            "token_owner" => casper_types::Key::Account(*owner),
+            "operator" => *operator,
+        },
+    );
+
+    Ok(is_approved_for_all)
+}
+
+/// Transfer NFT using CEP-78 transfer function
+pub fn transfer_nft(
+    collection_hash: &casper_types::ContractHash,
+    token_id: u64,
+    source_key: casper_types::Key,
+    target_key: casper_types::Key,
+) -> Result<(), Error> {
+    use casper_types::runtime_args;
+
+    let _result: (String, casper_types::Key) = runtime::call_contract(
+        *collection_hash,
+        "transfer",
+        runtime_args! {
+            "token_id" => token_id,
+            "source_key" => source_key,
+            "target_key" => target_key,
+        },
+    );
+
+    Ok(())
+}
+
+/// Approve marketplace to transfer NFT (called by seller before listing)
+pub fn approve_marketplace(
+    collection_hash: &casper_types::ContractHash,
+    token_id: u64,
+    spender: casper_types::Key,
+) -> Result<(), Error> {
+    use casper_types::runtime_args;
+
+    runtime::call_contract::<()>(
+        *collection_hash,
+        "approve",
+        runtime_args! {
+            "token_id" => token_id,
+            "spender" => spender,
+        },
+    );
 
     Ok(())
 }

@@ -31,7 +31,7 @@ use types::{Listing, ListingStatus};
 /// Entry point: List an NFT for sale
 #[no_mangle]
 pub extern "C" fn list_nft() {
-    let token_hash: Key = runtime::get_named_arg("token_hash");
+    let token_id: u64 = runtime::get_named_arg("token_id");
     let collection_hash: ContractHash = runtime::get_named_arg("collection_hash");
     let price: U512 = runtime::get_named_arg("price");
 
@@ -43,15 +43,48 @@ pub extern "C" fn list_nft() {
     let seller = runtime::get_caller();
     let listed_at = runtime::get_blocktime();
 
-    // Generate unique listing ID
-    let listing_id = generate_listing_id(&seller, &token_hash, listed_at);
+    // Verify seller owns the NFT
+    payment::verify_nft_ownership(&collection_hash, token_id, &seller)
+        .unwrap_or_revert_with(Error::NotAuthorized);
 
-    // TODO: Transfer NFT to marketplace (escrow)
-    // transfer_nft(&collection_hash, &token_hash, &seller, &runtime::get_caller()).unwrap_or_revert();
+    // Get marketplace contract key for approval check
+    let marketplace_contract_hash = runtime::get_named_arg::<ContractHash>("contract_hash")
+        .unwrap_or_else(|| {
+            // Fallback: get from storage
+            runtime::get_key("nft_marketplace_contract_hash")
+                .unwrap_or_revert()
+                .into_hash()
+                .map(ContractHash::new)
+                .unwrap_or_revert()
+        });
+    let marketplace_key = Key::from(marketplace_contract_hash);
+
+    // Check if marketplace is approved or transfer NFT to marketplace
+    let is_approved = payment::is_approved_or_owner(
+        &collection_hash,
+        token_id,
+        &marketplace_key,
+        &seller,
+    ).unwrap_or_revert();
+
+    if !is_approved {
+        // If not approved, transfer NFT to marketplace (escrow)
+        payment::transfer_nft(
+            &collection_hash,
+            token_id,
+            Key::Account(seller),
+            marketplace_key,
+        ).unwrap_or_revert_with(Error::NftTransferFailed);
+    }
+
+    // Generate unique listing ID and token_hash for compatibility
+    let token_hash = Key::from(collection_hash);
+    let listing_id = generate_listing_id(&seller, &token_hash, listed_at);
 
     // Create listing
     let listing = Listing {
         listing_id: listing_id.clone(),
+        token_id,
         token_hash,
         collection_hash,
         seller,
@@ -93,7 +126,7 @@ pub extern "C" fn purchase() {
 
     let buyer = runtime::get_caller();
 
-    // TODO: Get royalty info from collection
+    // TODO: Get royalty info from collection contract
     let royalty_numerator = 5u64; // Placeholder: 5%
     let royalty_denominator = 100u64;
     let creator = listing.seller; // Placeholder: use seller as creator
@@ -126,9 +159,21 @@ pub extern "C" fn purchase() {
         listing.seller,
     );
 
-    // TODO: Transfer NFT to buyer
-    // transfer_nft(&listing.collection_hash, &listing.token_hash, &listing.seller, &buyer)
-    //     .unwrap_or_revert_with(Error::NftTransferFailed);
+    // Get marketplace contract hash for transfer
+    let marketplace_contract_hash = runtime::get_key("nft_marketplace_contract_hash")
+        .unwrap_or_revert()
+        .into_hash()
+        .map(ContractHash::new)
+        .unwrap_or_revert();
+    let marketplace_key = Key::from(marketplace_contract_hash);
+
+    // Transfer NFT from marketplace to buyer
+    transfer_nft(
+        &listing.collection_hash,
+        listing.token_id,
+        marketplace_key,  // NFT is held by marketplace
+        Key::Account(buyer),  // Transfer to buyer
+    ).unwrap_or_revert_with(Error::NftTransferFailed);
 
     // Update listing status
     storage::update_listing_status(&listing_id, ListingStatus::Sold);
@@ -166,9 +211,21 @@ pub extern "C" fn cancel_listing() {
         runtime::revert(Error::ListingNotActive);
     }
 
-    // TODO: Transfer NFT back to seller
-    // transfer_nft(&listing.collection_hash, &listing.token_hash, &caller, &listing.seller)
-    //     .unwrap_or_revert_with(Error::NftTransferFailed);
+    // Get marketplace contract hash for transfer
+    let marketplace_contract_hash = runtime::get_key("nft_marketplace_contract_hash")
+        .unwrap_or_revert()
+        .into_hash()
+        .map(ContractHash::new)
+        .unwrap_or_revert();
+    let marketplace_key = Key::from(marketplace_contract_hash);
+
+    // Transfer NFT back to seller
+    transfer_nft(
+        &listing.collection_hash,
+        listing.token_id,
+        marketplace_key,  // NFT is held by marketplace
+        Key::Account(listing.seller),  // Return to seller
+    ).unwrap_or_revert_with(Error::NftTransferFailed);
 
     // Update listing status
     storage::update_listing_status(&listing_id, ListingStatus::Cancelled);
@@ -295,7 +352,7 @@ pub extern "C" fn call() {
     entry_points.add_entry_point(EntryPoint::new(
         "list_nft",
         vec![
-            Parameter::new("token_hash", CLType::Key),
+            Parameter::new("token_id", CLType::U64),
             Parameter::new("collection_hash", CLType::Key),
             Parameter::new("price", CLType::U512),
         ],

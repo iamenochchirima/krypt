@@ -46,7 +46,9 @@ impl CLTyped for ListingStatus {
 pub struct Listing {
     /// Unique listing identifier
     pub listing_id: String,
-    /// NFT token hash (Key)
+    /// NFT token ID (CEP-78 identifier)
+    pub token_id: u64,
+    /// NFT token hash (Key) - for compatibility
     pub token_hash: Key,
     /// Collection contract hash
     pub collection_hash: ContractHash,
@@ -64,6 +66,7 @@ impl ToBytes for Listing {
     fn to_bytes(&self) -> Result<Vec<u8>, casper_types::bytesrepr::Error> {
         let mut buffer = Vec::new();
         buffer.extend(self.listing_id.to_bytes()?);
+        buffer.extend(self.token_id.to_bytes()?);
         buffer.extend(self.token_hash.to_bytes()?);
         buffer.extend(self.collection_hash.to_bytes()?);
         buffer.extend(self.seller.to_bytes()?);
@@ -75,6 +78,7 @@ impl ToBytes for Listing {
 
     fn serialized_length(&self) -> usize {
         self.listing_id.serialized_length()
+            + self.token_id.serialized_length()
             + self.token_hash.serialized_length()
             + self.collection_hash.serialized_length()
             + self.seller.serialized_length()
@@ -87,6 +91,7 @@ impl ToBytes for Listing {
 impl FromBytes for Listing {
     fn from_bytes(bytes: &[u8]) -> Result<(Self, &[u8]), casper_types::bytesrepr::Error> {
         let (listing_id, remainder) = String::from_bytes(bytes)?;
+        let (token_id, remainder) = u64::from_bytes(remainder)?;
         let (token_hash, remainder) = Key::from_bytes(remainder)?;
         let (collection_hash, remainder) = ContractHash::from_bytes(remainder)?;
         let (seller, remainder) = AccountHash::from_bytes(remainder)?;
@@ -97,6 +102,7 @@ impl FromBytes for Listing {
         Ok((
             Listing {
                 listing_id,
+                token_id,
                 token_hash,
                 collection_hash,
                 seller,
