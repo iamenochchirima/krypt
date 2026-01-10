@@ -3,8 +3,6 @@ import type { Metadata } from "next"
 import { Inter } from "next/font/google"
 import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
-import Navbar from "@/components/navbar"
-import Footer from "@/components/footer"
 import { ReduxProvider } from "@/lib/redux/provider"
 import { Web3Providers } from "@/providers/web3Provider"
 import { WalletConnectionProvider } from "@/connect-wallet"
@@ -33,11 +31,7 @@ export default function RootLayout({
           <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false} disableTransitionOnChange>
             <Web3Providers>
               <WalletConnectionProvider>
-                <div className="flex min-h-screen flex-col">
-                  <Navbar />
-                  <main className="flex-1">{children}</main>
-                  <Footer />
-                </div>
+                {children}
                 <Toaster />
               </WalletConnectionProvider>
             </Web3Providers>

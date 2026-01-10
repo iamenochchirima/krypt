@@ -53,14 +53,18 @@ const config = {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
-        // Crypto-inspired colors
+        // CryptoVerse Theme Colors
         crypto: {
+          orange: {
+            DEFAULT: "#F7931A",
+            light: "#FFAB40",
+            dark: "#E67E00",
+          },
+          green: "#22C55E",
+          red: "#EF4444",
           blue: "#3B82F6",
           purple: "#8B5CF6",
-          pink: "#EC4899",
-          green: "#10B981",
-          yellow: "#F59E0B",
-          neon: "#00FFFF",
+          yellow: "#FACC15",
         },
       },
       borderRadius: {
@@ -89,7 +93,8 @@ const config = {
       },
       backgroundImage: {
         "gradient-radial": "radial-gradient(var(--tw-gradient-stops))",
-        "crypto-gradient": "linear-gradient(to right, #3B82F6, #8B5CF6, #EC4899)",
+        "crypto-gradient": "linear-gradient(to right, #F7931A, #FFAB40, #F7931A)",
+        "hero-glow": "radial-gradient(ellipse 80% 50% at 50% -20%, rgba(247, 147, 26, 0.15), transparent)",
       },
     },
   },

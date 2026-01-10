@@ -4,48 +4,58 @@
 
 @layer base {
   :root {
-    --background: 240 10% 3.9%;
+    /* CryptoVerse Dark Theme - Orange/Amber Accent */
+    --background: 0 0% 4%;
     --foreground: 0 0% 98%;
-    --card: 240 10% 3.9%;
+    --card: 0 0% 8%;
     --card-foreground: 0 0% 98%;
-    --popover: 240 10% 3.9%;
+    --popover: 0 0% 8%;
     --popover-foreground: 0 0% 98%;
-    --primary: 252 87% 67%;
-    --primary-foreground: 0 0% 98%;
-    --secondary: 240 3.7% 15.9%;
+    --primary: 36 96% 53%;
+    --primary-foreground: 0 0% 4%;
+    --secondary: 0 0% 12%;
     --secondary-foreground: 0 0% 98%;
-    --muted: 240 3.7% 15.9%;
-    --muted-foreground: 240 5% 64.9%;
-    --accent: 240 3.7% 15.9%;
+    --muted: 0 0% 15%;
+    --muted-foreground: 0 0% 60%;
+    --accent: 0 0% 15%;
     --accent-foreground: 0 0% 98%;
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 0 0% 98%;
-    --border: 240 3.7% 15.9%;
-    --input: 240 3.7% 15.9%;
-    --ring: 252 87% 67%;
-    --radius: 0.5rem;
+    --border: 0 0% 15%;
+    --input: 0 0% 15%;
+    --ring: 36 96% 53%;
+    --radius: 0.75rem;
+
+    /* Custom CryptoVerse Colors */
+    --crypto-orange: 36 96% 53%;
+    --crypto-orange-light: 36 96% 63%;
+    --crypto-orange-dark: 36 96% 43%;
+    --crypto-green: 142 71% 45%;
+    --crypto-red: 0 84% 60%;
+    --crypto-card-bg: 0 0% 8%;
+    --crypto-card-border: 0 0% 15%;
   }
 
   .light {
     --background: 0 0% 100%;
-    --foreground: 240 10% 3.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 240 10% 3.9%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 240 10% 3.9%;
-    --primary: 252 87% 67%;
+    --foreground: 0 0% 4%;
+    --card: 0 0% 98%;
+    --card-foreground: 0 0% 4%;
+    --popover: 0 0% 98%;
+    --popover-foreground: 0 0% 4%;
+    --primary: 36 96% 50%;
     --primary-foreground: 0 0% 98%;
-    --secondary: 240 4.8% 95.9%;
-    --secondary-foreground: 240 5.9% 10%;
-    --muted: 240 4.8% 95.9%;
-    --muted-foreground: 240 3.8% 46.1%;
-    --accent: 240 4.8% 95.9%;
-    --accent-foreground: 240 5.9% 10%;
+    --secondary: 0 0% 95%;
+    --secondary-foreground: 0 0% 10%;
+    --muted: 0 0% 95%;
+    --muted-foreground: 0 0% 40%;
+    --accent: 0 0% 95%;
+    --accent-foreground: 0 0% 10%;
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 98%;
-    --border: 240 5.9% 90%;
-    --input: 240 5.9% 90%;
-    --ring: 252 87% 67%;
+    --border: 0 0% 90%;
+    --input: 0 0% 90%;
+    --ring: 36 96% 50%;
   }
 }
 
@@ -54,46 +64,115 @@
     @apply border-border;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground antialiased;
   }
 }
 
-.crypto-card {
-  @apply relative overflow-hidden rounded-xl border bg-card p-6 shadow-md transition-all hover:shadow-lg;
-  background: rgba(30, 30, 40, 0.7);
-  backdrop-filter: blur(10px);
-}
-
+/* CryptoVerse Gradient Text */
 .crypto-gradient-text {
-  @apply bg-clip-text text-transparent bg-crypto-gradient;
-  background-size: 200% 200%;
+  @apply bg-gradient-to-r from-amber-500 via-orange-500 to-amber-400 bg-clip-text text-transparent;
 }
 
-.crypto-button {
-  @apply relative overflow-hidden rounded-lg px-4 py-2 font-medium transition-all;
+/* Hero Gradient Background */
+.hero-gradient {
+  background: radial-gradient(ellipse 80% 50% at 50% -20%, rgba(247, 147, 26, 0.15), transparent);
 }
 
-.crypto-button::before {
-  @apply absolute inset-0 bg-crypto-gradient opacity-0 transition-opacity duration-300;
-  content: "";
-  z-index: -1;
-  background-size: 200% 200%;
+/* Card Styles */
+.crypto-card {
+  @apply relative overflow-hidden rounded-xl border border-border bg-card p-6 transition-all duration-300;
 }
 
-.crypto-button:hover::before {
-  @apply opacity-100;
+.crypto-card:hover {
+  @apply border-primary/30;
 }
 
+/* Icon Container */
+.icon-container {
+  @apply flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary;
+}
+
+/* Badge Styles */
+.badge-popular {
+  @apply inline-flex items-center rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary;
+}
+
+.badge-new {
+  @apply inline-flex items-center rounded-full border border-green-500/30 bg-green-500/10 px-2 py-0.5 text-xs font-medium text-green-500;
+}
+
+.badge-pro {
+  @apply inline-flex items-center rounded-full border border-blue-500/30 bg-blue-500/10 px-2 py-0.5 text-xs font-medium text-blue-500;
+}
+
+/* Stats Card */
+.stats-value {
+  @apply text-4xl font-bold text-primary md:text-5xl;
+}
+
+/* Button Variants */
+.btn-primary {
+  @apply inline-flex items-center justify-center rounded-lg bg-primary px-6 py-3 font-medium text-primary-foreground transition-all hover:bg-primary/90;
+}
+
+.btn-secondary {
+  @apply inline-flex items-center justify-center rounded-lg border border-border bg-transparent px-6 py-3 font-medium text-foreground transition-all hover:bg-muted;
+}
+
+/* Section Label */
+.section-label {
+  @apply text-sm font-semibold uppercase tracking-wider text-primary;
+}
+
+/* Portfolio Card */
+.portfolio-card {
+  @apply rounded-2xl border border-border bg-card/50 p-6 backdrop-blur-sm;
+}
+
+/* Glow Effects */
+.glow-orange {
+  box-shadow: 0 0 40px rgba(247, 147, 26, 0.15);
+}
+
+/* Animations */
 @keyframes blink {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0;
-  }
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
 }
 
 .animate-blink {
   animation: blink 1s step-end infinite;
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+
+.animate-float {
+  animation: float 3s ease-in-out infinite;
+}
+
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 20px rgba(247, 147, 26, 0.2); }
+  50% { box-shadow: 0 0 40px rgba(247, 147, 26, 0.4); }
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+@keyframes scroll {
+  0%, 100% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+  50% {
+    transform: translateY(4px);
+    opacity: 0.5;
+  }
+}
+
+.animate-scroll {
+  animation: scroll 1.5s ease-in-out infinite;
 }

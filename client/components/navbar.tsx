@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import Link from "next/link"
 import Image from "next/image"
 import { usePathname } from "next/navigation"
-import { Menu, Search, X, Wallet } from "lucide-react"
+import { Menu, Search, X, Wallet, ChevronDown, Image as ImageIcon, Coins, Gamepad2, PiggyBank, LayoutDashboard } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { ModeToggle } from "@/components/mode-toggle"
 import { cn } from "@/lib/utils"
@@ -13,13 +13,55 @@ import { NotificationDropdown } from "@/components/notification-dropdown"
 import { useAuth } from "@/providers/auth-context"
 import { useWalletConnection, WalletModal } from "@/connect-wallet"
 import WalletInfoModal from "@/components/wallet-info-modal"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu"
 
-// Simplified navigation links
 const navLinks = [
   { name: "Home", href: "/" },
   { name: "Explore", href: "/explore" },
-  { name: "Blog", href: "/blog" },
-  { name: "Pulse", href: "/pulse" },
+]
+
+const platformLinks = [
+  {
+    name: "NFTs",
+    icon: ImageIcon,
+    items: [
+      { name: "Browse Collections", href: "/nft/collections" },
+      { name: "Marketplace", href: "/nft/marketplace" },
+      { name: "Launchpad", href: "/nft/launchpad" },
+      { name: "Create Collection", href: "/nft/launchpad/create" },
+      { name: "My Collections", href: "/nft/collections/my" },
+    ],
+  },
+  {
+    name: "Tokens",
+    icon: Coins,
+    items: [
+      { name: "Launchpad", href: "/tokens/launchpad" },
+      { name: "Marketplace", href: "/tokens/marketplace" },
+    ],
+  },
+  {
+    name: "Play",
+    icon: Gamepad2,
+    items: [
+      { name: "Games", href: "/play/games" },
+      { name: "Tournaments", href: "/play/tournaments" },
+    ],
+  },
+  {
+    name: "Earn",
+    icon: PiggyBank,
+    items: [
+      { name: "Staking", href: "/earn/staking" },
+      { name: "Rewards", href: "/earn/rewards" },
+    ],
+  },
 ]
 
 export default function Navbar() {
@@ -60,8 +102,8 @@ export default function Navbar() {
   return (
     <header
       className={cn(
-        "fixed top-0 z-50 w-full transition-all duration-300",
-        isScrolled ? "bg-background/80 backdrop-blur-md border-b" : "bg-transparent",
+        "fixed top-0 z-50 w-full transition-all duration-300 border-b border-border",
+        isScrolled ? "bg-background/80 backdrop-blur-md" : "bg-background",
       )}
     >
       <div className="container mx-auto flex h-16 items-center justify-between px-4">
@@ -74,7 +116,7 @@ export default function Navbar() {
               height={32}
               className="rounded-md"
             />
-            <span className="text-xl font-bold crypto-gradient-text">CryptoDotFun</span>
+            <span className="text-xl font-bold text-white">CryptoDotFun</span>
           </Link>
         </div>
 
@@ -92,6 +134,49 @@ export default function Navbar() {
               {link.name}
             </Link>
           ))}
+
+          {/* Platform Dropdown Menus */}
+          {platformLinks.map((section) => (
+            <DropdownMenu key={section.name}>
+              <DropdownMenuTrigger asChild>
+                <button
+                  className={cn(
+                    "flex items-center gap-1 px-3 py-2 rounded-md text-sm font-medium transition-colors",
+                    pathname.startsWith(`/${section.name.toLowerCase()}`)
+                      ? "text-primary"
+                      : "text-muted-foreground hover:text-foreground hover:bg-accent"
+                  )}
+                >
+                  <section.icon className="h-4 w-4" />
+                  {section.name}
+                  <ChevronDown className="h-3 w-3" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-48">
+                {section.items.map((item, index) => (
+                  <DropdownMenuItem key={item.href} asChild>
+                    <Link href={item.href} className="cursor-pointer">
+                      {item.name}
+                    </Link>
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ))}
+
+          {/* Dashboard link for authenticated users */}
+          {isAuthenticated && (
+            <Link
+              href="/dashboard"
+              className={cn(
+                "flex items-center gap-1 px-3 py-2 rounded-md text-sm font-medium transition-colors",
+                pathname === "/dashboard" ? "text-primary" : "text-muted-foreground hover:text-foreground hover:bg-accent",
+              )}
+            >
+              <LayoutDashboard className="h-4 w-4" />
+              Dashboard
+            </Link>
+          )}
         </nav>
 
         <div className="flex items-center gap-2">
@@ -160,12 +245,49 @@ export default function Navbar() {
                 {link.name}
               </Link>
             ))}
-            <div className="pt-2 space-y-2">
+
+            {/* Platform Links for Mobile */}
+            {platformLinks.map((section) => (
+              <div key={section.name} className="py-2">
+                <div className="flex items-center gap-2 px-3 py-1 text-sm font-semibold text-foreground">
+                  <section.icon className="h-4 w-4" />
+                  {section.name}
+                </div>
+                {section.items.map((item) => (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className="block px-6 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-accent rounded-md"
+                    onClick={() => setIsOpen(false)}
+                  >
+                    {item.name}
+                  </Link>
+                ))}
+              </div>
+            ))}
+
+            {/* Dashboard link for mobile */}
+            {isAuthenticated && (
+              <Link
+                href="/dashboard"
+                className={cn(
+                  "flex items-center gap-2 px-3 py-2 rounded-md text-base font-medium",
+                  pathname === "/dashboard"
+                    ? "text-primary"
+                    : "text-muted-foreground hover:text-foreground hover:bg-accent",
+                )}
+                onClick={() => setIsOpen(false)}
+              >
+                <LayoutDashboard className="h-4 w-4" />
+                Dashboard
+              </Link>
+            )}
+
+            <div className="pt-2 space-y-2 border-t mt-2">
               <Button variant="ghost" size="sm" className="w-full justify-start">
                 <Search className="mr-2 h-4 w-4" />
                 Search
               </Button>
-              {/* Connect Wallet Button - Only shown after authentication */}
               {isAuthenticated && (
                 <>
                   {walletState.isConnected ? (
