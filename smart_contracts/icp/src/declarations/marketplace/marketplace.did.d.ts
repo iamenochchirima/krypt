@@ -272,6 +272,7 @@ export interface UpdateSolanaStageArgs {
 }
 export interface _SERVICE {
   'add_items_to_candy_machine' : ActorMethod<[string, InstructionData], Result>,
+  'admin_remove_collection' : ActorMethod<[string], Result>,
   'associated_token_account' : ActorMethod<[[] | [Principal], string], string>,
   'cancel_listing' : ActorMethod<[string, string], Result_1>,
   'clear_old_collections' : ActorMethod<[], Result_1>,

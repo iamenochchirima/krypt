@@ -20,35 +20,37 @@ const services = [
     description: "Runes, BRC-20, and Ordinals in one place",
     icon: Bitcoin,
     href: "/bitcoin/assets",
-    badge: "Popular",
-    badgeClass: "badge-popular",
+    badge: "Coming Soon",
+    badgeClass: "badge-new",
   },
   {
     title: "NFTs",
     description: "Create, collect, and trade digital art",
     icon: ImageIcon,
-    href: "/nft/collections",
+    href: "/nft/discover",
   },
   {
     title: "Tokens",
     description: "Manage your multi-chain portfolio",
     icon: Coins,
     href: "/tokens/launchpad",
+    badge: "Coming Soon",
+    badgeClass: "badge-new",
   },
   {
     title: "Trading",
     description: "Advanced tools for smart trading",
     icon: TrendingUp,
     href: "/tokens/marketplace",
-    badge: "Pro",
-    badgeClass: "badge-pro",
+    badge: "Coming Soon",
+    badgeClass: "badge-new",
   },
   {
     title: "Gaming",
     description: "Play-to-earn blockchain games",
     icon: Gamepad2,
     href: "/play",
-    badge: "New",
+    badge: "Coming Soon",
     badgeClass: "badge-new",
   },
   {
@@ -56,32 +58,27 @@ const services = [
     description: "Master crypto with expert guides",
     icon: GraduationCap,
     href: "/learn",
+    badge: "Coming Soon",
+    badgeClass: "badge-new",
   },
 ]
 
 const features = [
   {
     icon: Shield,
-    title: "Bank-Grade Security",
-    description: "Multi-signature wallets and cold storage protect your assets 24/7",
+    title: "Secure by Design",
+    description: "Built with security-first architecture to protect your assets",
   },
   {
     icon: Zap,
-    title: "Lightning Fast",
-    description: "Execute trades in milliseconds with our optimized infrastructure",
+    title: "Fast & Reliable",
+    description: "Optimized infrastructure for seamless transactions",
   },
   {
     icon: Globe,
-    title: "Global Access",
-    description: "Available in 190+ countries with localized support",
+    title: "Multi-Chain",
+    description: "Supporting multiple blockchain networks in one platform",
   },
-]
-
-const stats = [
-  { value: "$2.4B+", label: "Trading Volume" },
-  { value: "150K+", label: "Active Users" },
-  { value: "50+", label: "Chains Supported" },
-  { value: "99.9%", label: "Uptime" },
 ]
 
 export default function LandingPage() {
@@ -93,7 +90,7 @@ export default function LandingPage() {
           {/* Badge */}
           <div className="inline-flex items-center gap-2 rounded-full border border-border bg-card/50 px-4 py-2 mb-8">
             <span className="h-2 w-2 rounded-full bg-crypto-green animate-pulse" />
-            <span className="text-sm text-muted-foreground">Now supporting 50+ blockchain networks</span>
+            <span className="text-sm text-muted-foreground">Multi-chain NFT platform now live</span>
           </div>
 
           {/* Main Headline */}
@@ -112,7 +109,7 @@ export default function LandingPage() {
 
           {/* CTA Buttons */}
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-16">
-            <Link href="/explore">
+            <Link href="/nft/discover">
               <Button size="lg" className="btn-primary gap-2">
                 Launch App
                 <ArrowRight className="h-4 w-4" />
@@ -128,7 +125,7 @@ export default function LandingPage() {
           {/* Social Proof */}
           <div className="flex items-center justify-center gap-4">
             <div className="flex -space-x-2">
-              {[1, 2, 3, 4].map((i) => (
+              {[1, 2, 3, 4, 5].map((i) => (
                 <div
                   key={i}
                   className="h-10 w-10 rounded-full bg-primary/20 border-2 border-background"
@@ -136,8 +133,8 @@ export default function LandingPage() {
               ))}
             </div>
             <div className="text-left">
-              <p className="text-sm font-semibold text-primary">Join 150,000+ users</p>
-              <p className="text-xs text-muted-foreground">Trusted by traders worldwide</p>
+              <p className="text-sm font-semibold text-primary">Join our early users</p>
+              <p className="text-xs text-muted-foreground">Be part of something new</p>
             </div>
           </div>
         </div>
@@ -211,7 +208,7 @@ export default function LandingPage() {
               </h2>
               <p className="text-muted-foreground mb-8 max-w-lg">
                 We&apos;ve reimagined what a crypto platform should be. Secure, fast,
-                and accessible to everyone — from beginners to institutional traders.
+                and accessible to everyone — from beginners to experienced traders.
               </p>
 
               <div className="space-y-6">
@@ -233,17 +230,17 @@ export default function LandingPage() {
             <div className="portfolio-card glow-orange">
               <div className="flex items-center justify-between mb-6">
                 <span className="text-sm text-muted-foreground">Portfolio Value</span>
-                <span className="text-sm font-medium text-crypto-green">+12.4%</span>
+                <span className="text-sm font-medium text-muted-foreground">--</span>
               </div>
               <p className="text-4xl md:text-5xl font-bold crypto-gradient-text mb-8">
-                $127,450.32
+                $0.00
               </p>
 
               <div className="space-y-4">
                 {[
-                  { symbol: "BTC", name: "Bitcoin", value: "$67,234", change: "+2.3%" },
-                  { symbol: "ETH", name: "Ethereum", value: "$32,156", change: "+4.1%" },
-                  { symbol: "ORD", name: "Ordinals", value: "$28,060", change: "+8.7%" },
+                  { symbol: "BTC", name: "Bitcoin", value: "$0.00", change: "--" },
+                  { symbol: "ETH", name: "Ethereum", value: "$0.00", change: "--" },
+                  { symbol: "SOL", name: "Solana", value: "$0.00", change: "--" },
                 ].map((asset) => (
                   <div key={asset.symbol} className="flex items-center justify-between py-3 border-t border-border">
                     <div className="flex items-center gap-3">
@@ -257,7 +254,7 @@ export default function LandingPage() {
                     </div>
                     <div className="text-right">
                       <p className="font-medium">{asset.value}</p>
-                      <p className="text-xs text-crypto-green">{asset.change}</p>
+                      <p className="text-xs text-muted-foreground">{asset.change}</p>
                     </div>
                   </div>
                 ))}
@@ -266,21 +263,6 @@ export default function LandingPage() {
           </div>
         </div>
       </section>
-
-      {/* Stats Section - Commented out for now
-      <section className="py-16 border-t border-border">
-        <div className="container mx-auto px-4">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
-            {stats.map((stat) => (
-              <div key={stat.label} className="text-center">
-                <p className="stats-value">{stat.value}</p>
-                <p className="text-muted-foreground">{stat.label}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-      */}
 
       {/* CTA Section */}
       <section className="py-24">
@@ -292,18 +274,18 @@ export default function LandingPage() {
               <span className="crypto-gradient-text">Crypto Journey?</span>
             </h2>
             <p className="text-muted-foreground mb-8 max-w-lg mx-auto">
-              Join thousands of traders who trust CryptoDotFun for their digital
-              asset needs. Get started in minutes.
+              Join CryptoDotFun and explore the future of digital assets.
+              Get started in minutes.
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-              <Link href="/register">
+              <Link href="/nft/discover">
                 <Button size="lg" className="btn-primary">
-                  Create Free Account
+                  Get Started
                 </Button>
               </Link>
-              <Link href="/contact">
+              <Link href="/explore">
                 <Button size="lg" variant="outline" className="btn-secondary">
-                  Contact Sales
+                  Learn More
                 </Button>
               </Link>
             </div>

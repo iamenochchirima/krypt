@@ -4,15 +4,10 @@ import { useState, useEffect } from "react"
 import Link from "next/link"
 import Image from "next/image"
 import { usePathname } from "next/navigation"
-import { Menu, X, Wallet } from "lucide-react"
+import { Menu, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { ModeToggle } from "@/components/mode-toggle"
 import { cn } from "@/lib/utils"
-import AuthButton from "@/components/auth-button"
-import { NotificationDropdown } from "@/components/notification-dropdown"
-import { useAuth } from "@/providers/auth-context"
-import { useWalletConnection, WalletModal } from "@/connect-wallet"
-import WalletInfoModal from "@/components/wallet-info-modal"
+import { NavbarActions, NavbarActionsMobile } from "./navbar-actions"
 
 const navLinks = [
   { name: "Home", href: "/" },
@@ -22,22 +17,10 @@ const navLinks = [
 ]
 
 export function MarketingNavbar() {
-  const { isAuthenticated } = useAuth()
-  const { walletState } = useWalletConnection()
   const [isOpen, setIsOpen] = useState(false)
   const [isScrolled, setIsScrolled] = useState(false)
   const [mounted, setMounted] = useState(false)
-  const [walletModalOpen, setWalletModalOpen] = useState(false)
-  const [walletInfoModalOpen, setWalletInfoModalOpen] = useState(false)
   const pathname = usePathname()
-
-  const handleWalletButtonClick = () => {
-    if (walletState.isConnected) {
-      setWalletInfoModalOpen(true)
-    } else {
-      setWalletModalOpen(true)
-    }
-  }
 
   useEffect(() => {
     setMounted(true)
@@ -92,37 +75,7 @@ export function MarketingNavbar() {
         </nav>
 
         <div className="flex items-center gap-2">
-          <AuthButton />
-
-          {isAuthenticated && (
-            <>
-              {walletState.isConnected ? (
-                <Button
-                  variant="outline"
-                  size="icon"
-                  onClick={handleWalletButtonClick}
-                  className="hidden md:flex"
-                >
-                  <Wallet className="h-4 w-4" />
-                  <span className="sr-only">Wallet Info</span>
-                </Button>
-              ) : (
-                <Button
-                  variant="default"
-                  size="sm"
-                  onClick={handleWalletButtonClick}
-                  className="hidden md:flex items-center gap-2"
-                >
-                  <Wallet className="h-4 w-4" />
-                  Connect Wallet
-                </Button>
-              )}
-            </>
-          )}
-
-          {isAuthenticated && <NotificationDropdown />}
-
-          <ModeToggle />
+          <NavbarActions className="flex items-center gap-2" />
 
           {/* Mobile menu button */}
           <Button variant="ghost" size="icon" className="md:hidden" onClick={() => setIsOpen(!isOpen)}>
@@ -152,50 +105,12 @@ export function MarketingNavbar() {
               </Link>
             ))}
 
-            {isAuthenticated && (
-              <div className="pt-2 space-y-2 border-t mt-2">
-                {walletState.isConnected ? (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      setWalletInfoModalOpen(true)
-                      setIsOpen(false)
-                    }}
-                    className="w-full justify-start"
-                  >
-                    <Wallet className="mr-2 h-4 w-4" />
-                    Wallet Info
-                  </Button>
-                ) : (
-                  <Button
-                    variant="default"
-                    size="sm"
-                    onClick={() => {
-                      setWalletModalOpen(true)
-                      setIsOpen(false)
-                    }}
-                    className="w-full justify-start"
-                  >
-                    <Wallet className="mr-2 h-4 w-4" />
-                    Connect Wallet
-                  </Button>
-                )}
-              </div>
-            )}
+            <div className="pt-2 space-y-2 border-t mt-2">
+              <NavbarActionsMobile onAction={() => setIsOpen(false)} />
+            </div>
           </div>
         </div>
       )}
-
-      <WalletModal
-        isOpen={walletModalOpen}
-        onClose={() => setWalletModalOpen(false)}
-      />
-
-      <WalletInfoModal
-        isOpen={walletInfoModalOpen}
-        onClose={() => setWalletInfoModalOpen(false)}
-      />
     </header>
   )
 }

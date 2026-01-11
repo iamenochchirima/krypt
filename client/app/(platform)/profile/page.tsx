@@ -705,7 +705,7 @@ export default function ProfilePage() {
                             <div className="mb-1 text-sm text-muted-foreground">{nft.collection}</div>
                             <h3 className="mb-2 text-lg font-bold">{nft.name}</h3>
                             <Button size="sm" variant="outline" className="w-full" asChild>
-                              <Link href={`/collections/${nft.id}`}>View Details</Link>
+                              <Link href={`/nft/collections/${nft.chain.toLowerCase()}/${nft.id}`}>View Details</Link>
                             </Button>
                           </div>
                         </div>
@@ -713,7 +713,7 @@ export default function ProfilePage() {
                     </div>
                     <div className="mt-4 flex gap-4">
                       <Button className="flex-1" asChild>
-                        <Link href="/collections">Browse Collections</Link>
+                        <Link href="/nft/collections">Browse Collections</Link>
                       </Button>
                       <Button variant="outline" className="flex-1" asChild>
                         <Link href="/nft/launchpad">Create NFT</Link>

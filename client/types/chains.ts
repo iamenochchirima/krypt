@@ -60,6 +60,21 @@ export const supportedChains: Chain[] = [
     category: 'layer1',
   },
   {
+    id: 'movement',
+    name: 'Movement',
+    symbol: 'MOVE',
+    icon: '/chains/movement.jpeg',
+    color: '#FFCC00',
+    rpcUrl: 'https://testnet.movementnetwork.xyz/v1',
+    explorerUrl: 'https://explorer.movementnetwork.xyz',
+    nativeCurrency: {
+      name: 'Movement',
+      symbol: 'MOVE',
+      decimals: 8,
+    },
+    category: 'layer2',
+  },
+  {
     id: 'near',
     name: 'NEAR Protocol',
     symbol: 'NEAR',

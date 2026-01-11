@@ -134,61 +134,8 @@ export default function CollectionsPage() {
   }, [collections, selectedChains, searchQuery])
 
   return (
-    <div className="container mx-auto px-4 py-24">
-      <div className="mb-8 space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-          <div>
-            <h1 className="text-4xl font-bold mb-2">Collections</h1>
-            <p className="text-lg text-muted-foreground">
-              Discover and trade NFT collections across multiple blockchains
-            </p>
-          </div>
-          <div className="flex items-center gap-3">
-            <Button variant="outline" asChild>
-              <Link href="/collections/my">
-                <Wallet className="mr-2 h-4 w-4" />
-                My Collections
-              </Link>
-            </Button>
-            <Button className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white" asChild>
-              <Link href="/nft/create-collection">
-                <Plus className="mr-2 h-4 w-4" />
-                Create Collection
-              </Link>
-            </Button>
-          </div>
-        </div>
-
-        {/* Featured Collection */}
-        <div className="mb-8 rounded-xl overflow-hidden border bg-gradient-to-r from-primary/10 to-purple-600/10">
-          <div className="relative h-48 md:h-64">
-            <Image src="/placeholder.svg?height=600&width=1200" alt="Featured Collection" fill className="object-cover rounded-t-xl" />
-            <div className="absolute inset-0 bg-gradient-to-t from-background/90 to-transparent" />
-            <div className="absolute bottom-4 left-4 right-4">
-              <div className="flex items-end gap-4">
-                <div className="relative h-16 w-16 rounded-lg overflow-hidden border-2 border-background">
-                  <Image
-                    src="/placeholder.svg?height=300&width=300"
-                    alt="Collection Logo"
-                    fill
-                    className="object-cover"
-                  />
-                </div>
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-1">
-                    <h2 className="text-xl font-bold text-white">Multi-Chain Genesis</h2>
-                    <Badge className="bg-primary text-primary-foreground">Featured</Badge>
-                  </div>
-                  <p className="text-white/80 text-sm">By CryptoArt Studios • Floor: 0.5 ETH</p>
-                </div>
-                <Button size="sm" variant="secondary" className="bg-white/20 backdrop-blur-sm text-white hover:bg-white/30">
-                  <ExternalLink className="w-4 h-4 mr-1" />
-                  View
-                </Button>
-              </div>
-            </div>
-          </div>
-        </div>
+    <div className="space-y-6">
+      <div className="space-y-4">
 
         <div className="flex flex-col lg:flex-row gap-4 items-end">
           <div className="relative flex-1">
@@ -263,7 +210,7 @@ export default function CollectionsPage() {
                   <TableRow key={collection.id} className="cursor-pointer hover:bg-muted/50">
                     <TableCell className="font-medium">{index + 1}</TableCell>
                     <TableCell>
-                      <Link href={`/collections/${collection.chain}/${collection.id}`} className="flex items-center gap-3">
+                      <Link href={`/nft/collections/${collection.chain}/${collection.id}`} className="flex items-center gap-3">
                         <div className="relative h-10 w-10 rounded-lg overflow-hidden flex-shrink-0">
                           <Image
                             src={collection.image}
@@ -334,7 +281,7 @@ export default function CollectionsPage() {
 
             return (
               <Card key={collection.id} className="group overflow-hidden transition-all hover:shadow-lg">
-                <Link href={`/collections/${collection.chain}/${collection.id}`}>
+                <Link href={`/nft/collections/${collection.chain}/${collection.id}`}>
                   <div className="relative h-32 w-full overflow-hidden">
                     <Image
                       src={collection.banner}
@@ -436,7 +383,7 @@ export default function CollectionsPage() {
                   <TableRow key={collection.id} className="cursor-pointer hover:bg-muted/50">
                     <TableCell className="font-medium">{index + 1}</TableCell>
                     <TableCell>
-                      <Link href={`/collections/${collection.chain}/${collection.id}`} className="flex items-center gap-3">
+                      <Link href={`/nft/collections/${collection.chain}/${collection.id}`} className="flex items-center gap-3">
                         <div className="relative h-10 w-10 rounded-lg overflow-hidden flex-shrink-0">
                           <Image
                             src={collection.image}
@@ -507,7 +454,7 @@ export default function CollectionsPage() {
 
             return (
               <Card key={collection.id} className="group overflow-hidden transition-all hover:shadow-lg">
-                <Link href={`/collections/${collection.chain}/${collection.id}`}>
+                <Link href={`/nft/collections/${collection.chain}/${collection.id}`}>
                   <div className="relative h-32 w-full overflow-hidden">
                     <Image
                       src={collection.banner}
@@ -622,7 +569,7 @@ export default function CollectionsPage() {
                   <TableRow key={collection.id} className="cursor-pointer hover:bg-muted/50">
                     <TableCell className="font-medium">{index + 1}</TableCell>
                     <TableCell>
-                      <Link href={`/collections/${collection.chain}/${collection.id}`} className="flex items-center gap-3">
+                      <Link href={`/nft/collections/${collection.chain}/${collection.id}`} className="flex items-center gap-3">
                         <div className="relative h-10 w-10 rounded-lg overflow-hidden flex-shrink-0">
                           <Image
                             src={collection.image}
@@ -693,7 +640,7 @@ export default function CollectionsPage() {
 
             return (
               <Card key={collection.id} className="group overflow-hidden transition-all hover:shadow-lg">
-                <Link href={`/collections/${collection.chain}/${collection.id}`}>
+                <Link href={`/nft/collections/${collection.chain}/${collection.id}`}>
                   <div className="relative h-32 w-full overflow-hidden">
                     <Image
                       src={collection.banner}

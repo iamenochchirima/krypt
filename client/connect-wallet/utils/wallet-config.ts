@@ -162,7 +162,7 @@ export const CHAIN_CONFIGS: Record<'ethereum' | 'solana' | 'bitcoin' | 'movement
   },
   movement: {
     name: 'Movement',
-    icon: '/placeholder-logo.svg',
+    icon: '/chains/movement.jpeg',
     description: 'Connect Movement wallets',
   },
 };

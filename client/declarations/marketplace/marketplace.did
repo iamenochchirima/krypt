@@ -257,6 +257,7 @@ type UpdateSolanaStageArgs = record {
 };
 service : (InitArgs) -> {
   add_items_to_candy_machine : (text, InstructionData) -> (Result);
+  admin_remove_collection : (text) -> (Result);
   associated_token_account : (opt principal, text) -> (text);
   cancel_listing : (text, text) -> (Result_1);
   clear_old_collections : () -> (Result_1);

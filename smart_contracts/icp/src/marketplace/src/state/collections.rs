@@ -390,3 +390,12 @@ pub fn get_all_draft_collections(page: u32, limit: u32) -> Vec<Collection> {
             .collect()
     })
 }
+
+pub fn remove_collection(collection_id: &str) -> Result<Collection, String> {
+    COLLECTIONS.with(|c| {
+        let mut collections = c.borrow_mut();
+        collections
+            .remove(&collection_id.to_string())
+            .ok_or_else(|| "Collection not found".to_string())
+    })
+}

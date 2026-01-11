@@ -508,7 +508,7 @@ export default function ManageMovementCollectionPage() {
     <div className="container mx-auto py-8 space-y-6">
       {/* Back Button */}
       <Button variant="ghost" asChild>
-        <Link href="/collections/my">
+        <Link href="/nft/collections/my">
           <ArrowLeft className="mr-2 h-4 w-4" />
           Back to My Collections
         </Link>

@@ -1,61 +1,48 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import Link from "next/link"
-import Image from "next/image"
-import { Search, Wallet, Menu, X } from "lucide-react"
+import { Search, Menu, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { ModeToggle } from "@/components/mode-toggle"
-import { cn } from "@/lib/utils"
-import AuthButton from "@/components/auth-button"
-import { NotificationDropdown } from "@/components/notification-dropdown"
-import { useAuth } from "@/providers/auth-context"
-import { useWalletConnection, WalletModal } from "@/connect-wallet"
-import WalletInfoModal from "@/components/wallet-info-modal"
 import { ExploreModal } from "./explore-modal"
+import { NavbarActions, NavbarActionsMobile } from "./navbar-actions"
+import { cn } from "@/lib/utils"
 
 export function PlatformNavbar() {
-  const { isAuthenticated } = useAuth()
-  const { walletState } = useWalletConnection()
   const [mounted, setMounted] = useState(false)
-  const [walletModalOpen, setWalletModalOpen] = useState(false)
-  const [walletInfoModalOpen, setWalletInfoModalOpen] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
-
-  const handleWalletButtonClick = () => {
-    if (walletState.isConnected) {
-      setWalletInfoModalOpen(true)
-    } else {
-      setWalletModalOpen(true)
-    }
-  }
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
 
   useEffect(() => {
     setMounted(true)
+
+    // Load initial sidebar state
+    const saved = localStorage.getItem("sidebar-collapsed")
+    if (saved !== null) {
+      setSidebarCollapsed(JSON.parse(saved))
+    }
+
+    // Listen for sidebar toggle events
+    const handleToggle = (e: CustomEvent) => {
+      setSidebarCollapsed(e.detail.collapsed)
+    }
+
+    window.addEventListener("sidebar-toggle", handleToggle as EventListener)
+    return () => window.removeEventListener("sidebar-toggle", handleToggle as EventListener)
   }, [])
 
   if (!mounted) {
-    return <header className="fixed top-0 z-50 w-full h-16" />
+    return <header className="fixed top-0 left-64 right-0 z-50 h-16" />
   }
 
   return (
-    <header className="fixed top-0 z-50 w-full bg-background border-b border-border">
+    <header className={cn(
+      "fixed top-0 right-0 z-50 bg-background border-b border-border transition-all duration-300",
+      sidebarCollapsed ? "left-16" : "left-64"
+    )}>
       <div className="flex h-16 items-center justify-between px-4">
-        {/* Left side - Logo and Explore */}
+        {/* Left side - Explore */}
         <div className="flex items-center gap-4">
-          <Link href="/" className="flex items-center space-x-2">
-            <Image
-              src="/logo.png"
-              alt="CryptoDotFun Logo"
-              width={32}
-              height={32}
-              className="rounded-md"
-            />
-            <span className="text-xl font-bold text-white hidden sm:inline">CryptoDotFun</span>
-          </Link>
-
-          {/* Explore Button with Modal */}
           <ExploreModal>
             <Button variant="outline" size="sm" className="gap-2">
               <svg
@@ -80,7 +67,7 @@ export function PlatformNavbar() {
           </ExploreModal>
         </div>
 
-        {/* Center - Search Bar (hidden on mobile) */}
+        {/* Center - Search Bar */}
         <div className="hidden md:flex flex-1 max-w-md mx-4">
           <div className="relative w-full">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -99,43 +86,13 @@ export function PlatformNavbar() {
             <span className="sr-only">Search</span>
           </Button>
 
-          <AuthButton />
-
-          {isAuthenticated && (
-            <>
-              {walletState.isConnected ? (
-                <Button
-                  variant="outline"
-                  size="icon"
-                  onClick={handleWalletButtonClick}
-                  className="hidden sm:flex"
-                >
-                  <Wallet className="h-4 w-4" />
-                  <span className="sr-only">Wallet Info</span>
-                </Button>
-              ) : (
-                <Button
-                  variant="default"
-                  size="sm"
-                  onClick={handleWalletButtonClick}
-                  className="hidden sm:flex items-center gap-2"
-                >
-                  <Wallet className="h-4 w-4" />
-                  <span className="hidden lg:inline">Connect Wallet</span>
-                </Button>
-              )}
-            </>
-          )}
-
-          {isAuthenticated && <NotificationDropdown />}
-
-          <ModeToggle />
+          <NavbarActions className="flex items-center gap-2" />
 
           {/* Mobile menu button */}
           <Button
             variant="ghost"
             size="icon"
-            className="sm:hidden"
+            className="md:hidden"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
           >
             {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
@@ -146,53 +103,15 @@ export function PlatformNavbar() {
 
       {/* Mobile Menu */}
       {mobileMenuOpen && (
-        <div className="sm:hidden bg-background border-b border-border p-4 space-y-3">
+        <div className="md:hidden bg-background border-b border-border p-4 space-y-3">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input placeholder="Search..." className="pl-10" />
           </div>
 
-          {isAuthenticated && !walletState.isConnected && (
-            <Button
-              variant="default"
-              size="sm"
-              onClick={() => {
-                setWalletModalOpen(true)
-                setMobileMenuOpen(false)
-              }}
-              className="w-full"
-            >
-              <Wallet className="mr-2 h-4 w-4" />
-              Connect Wallet
-            </Button>
-          )}
-
-          {isAuthenticated && walletState.isConnected && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                setWalletInfoModalOpen(true)
-                setMobileMenuOpen(false)
-              }}
-              className="w-full"
-            >
-              <Wallet className="mr-2 h-4 w-4" />
-              Wallet Info
-            </Button>
-          )}
+          <NavbarActionsMobile onAction={() => setMobileMenuOpen(false)} />
         </div>
       )}
-
-      <WalletModal
-        isOpen={walletModalOpen}
-        onClose={() => setWalletModalOpen(false)}
-      />
-
-      <WalletInfoModal
-        isOpen={walletInfoModalOpen}
-        onClose={() => setWalletInfoModalOpen(false)}
-      />
     </header>
   )
 }

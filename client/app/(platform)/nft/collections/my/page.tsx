@@ -96,19 +96,19 @@ export default function MyCollectionsPage() {
 
     if (status === 'Draft' && !hasCandyMachine && !isMovementDeployed) {
       if (blockchain === 'Solana') {
-        router.push('/nft/create-collection/solana')
+        router.push('/nft/launchpad/solana')
       } else if (blockchain === 'ICP') {
-        router.push('/nft/create-collection/icp')
+        router.push('/nft/launchpad/icp')
       } else if (blockchain === 'Movement') {
-        router.push('/nft/create-collection/movement')
+        router.push('/nft/launchpad/movement')
       }
     } else {
       if (blockchain === 'Solana') {
-        router.push(`/collections/solana/manage/${collection.id}`)
+        router.push(`/nft/collections/solana/manage/${collection.id}`)
       } else if (blockchain === 'ICP') {
-        router.push(`/collections/icp/manage/${collection.id}`)
+        router.push(`/nft/collections/icp/manage/${collection.id}`)
       } else if (blockchain === 'Movement') {
-        router.push(`/collections/movement/manage/${collection.id}`)
+        router.push(`/nft/collections/movement/manage/${collection.id}`)
       }
     }
   }
@@ -250,26 +250,12 @@ export default function MyCollectionsPage() {
             Manage your NFT collections across different blockchains
           </p>
         </div>
-        <div className="flex gap-2">
-          <Link href="/nft/create-collection/movement">
-            <Button>
-              <Plus className="h-4 w-4 mr-2" />
-              Create Movement Collection
-            </Button>
-          </Link>
-          <Link href="/nft/create-collection/solana">
-            <Button variant="outline">
-              <Plus className="h-4 w-4 mr-2" />
-              Create Solana Collection
-            </Button>
-          </Link>
-          <Link href="/nft/create-collection/icp">
-            <Button variant="outline">
-              <Plus className="h-4 w-4 mr-2" />
-              Create ICP Collection
-            </Button>
-          </Link>
-        </div>
+        <Link href="/nft/launchpad">
+          <Button>
+            <Plus className="h-4 w-4 mr-2" />
+            Create Collection
+          </Button>
+        </Link>
       </div>
 
       {/* Blockchain Filter */}
@@ -337,7 +323,7 @@ export default function MyCollectionsPage() {
                 <p className="text-muted-foreground mb-4">
                   You haven't deployed any collections yet
                 </p>
-                <Link href="/nft/create-collection/solana">
+                <Link href="/nft/launchpad/solana">
                   <Button>
                     <Plus className="h-4 w-4 mr-2" />
                     Create Your First Collection

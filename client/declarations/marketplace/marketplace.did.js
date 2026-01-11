@@ -303,6 +303,7 @@ export const idlFactory = ({ IDL }) => {
         [Result],
         [],
       ),
+    'admin_remove_collection' : IDL.Func([IDL.Text], [Result], []),
     'associated_token_account' : IDL.Func(
         [IDL.Opt(IDL.Principal), IDL.Text],
         [IDL.Text],

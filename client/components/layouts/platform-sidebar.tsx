@@ -1,11 +1,13 @@
 "use client"
 
+import { useState, useEffect } from "react"
 import { usePathname } from "next/navigation"
 import Link from "next/link"
+import Image from "next/image"
 import { cn } from "@/lib/utils"
 import {
   LayoutDashboard,
-  Image,
+  Image as ImageIcon,
   Rocket,
   Store,
   FolderOpen,
@@ -18,7 +20,17 @@ import {
   Gift,
   User,
   ChevronRight,
+  ChevronLeft,
+  PanelLeftClose,
+  PanelLeft,
 } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 
 interface NavItem {
   label: string
@@ -34,39 +46,14 @@ interface NavSection {
 }
 
 const navigationConfig: Record<string, NavSection> = {
-  dashboard: {
-    title: "Dashboard",
-    basePath: "/dashboard",
-    items: [
-      { label: "Overview", href: "/dashboard", icon: LayoutDashboard },
-      { label: "My NFTs", href: "/dashboard/nfts", icon: Image },
-      { label: "My Tokens", href: "/dashboard/tokens", icon: Coins },
-      { label: "Activity", href: "/dashboard/activity", icon: TrendingUp },
-    ],
-  },
   nft: {
     title: "NFTs",
     basePath: "/nft",
     items: [
-      {
-        label: "Launchpad",
-        href: "/nft/launchpad",
-        icon: Rocket,
-        children: [
-          { label: "Browse", href: "/nft/launchpad", icon: ChevronRight },
-          { label: "Create Collection", href: "/nft/launchpad/create", icon: ChevronRight },
-        ],
-      },
-      { label: "Marketplace", href: "/nft/marketplace", icon: Store },
-      {
-        label: "Collections",
-        href: "/nft/collections",
-        icon: FolderOpen,
-        children: [
-          { label: "Browse All", href: "/nft/collections", icon: ChevronRight },
-          { label: "My Collections", href: "/nft/collections/my", icon: ChevronRight },
-        ],
-      },
+      { label: "Discover", href: "/nft/discover", icon: TrendingUp },
+      { label: "Collections", href: "/nft/collections", icon: FolderOpen },
+      { label: "Launchpad", href: "/nft/launchpad", icon: Rocket },
+      { label: "My Collections", href: "/nft/collections/my", icon: User },
     ],
   },
   tokens: {
@@ -121,21 +108,47 @@ function getActiveSection(pathname: string): NavSection | null {
       return section
     }
   }
-  return navigationConfig.dashboard
+  return null
 }
 
 interface SidebarNavItemProps {
   item: NavItem
   pathname: string
   depth?: number
+  collapsed?: boolean
 }
 
-function SidebarNavItem({ item, pathname, depth = 0 }: SidebarNavItemProps) {
+function SidebarNavItem({ item, pathname, depth = 0, collapsed = false }: SidebarNavItemProps) {
   const isActive = pathname === item.href ||
     (item.children && item.children.some(child => pathname === child.href))
   const hasChildren = item.children && item.children.length > 0
   const isExpanded = hasChildren &&
     (pathname.startsWith(item.href) || item.children?.some(c => pathname === c.href))
+
+  if (collapsed && depth === 0) {
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Link
+            href={item.href}
+            className={cn(
+              "flex items-center justify-center p-2 rounded-lg transition-colors",
+              isActive
+                ? "bg-muted text-foreground"
+                : "text-muted-foreground hover:text-foreground hover:bg-muted"
+            )}
+          >
+            <item.icon className="h-5 w-5" />
+          </Link>
+        </TooltipTrigger>
+        <TooltipContent side="right">
+          {item.label}
+        </TooltipContent>
+      </Tooltip>
+    )
+  }
+
+  if (collapsed) return null
 
   return (
     <div>
@@ -145,7 +158,7 @@ function SidebarNavItem({ item, pathname, depth = 0 }: SidebarNavItemProps) {
           "flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors",
           depth > 0 && "ml-4 text-xs",
           isActive
-            ? "bg-primary text-primary-foreground"
+            ? "bg-muted text-foreground"
             : "text-muted-foreground hover:text-foreground hover:bg-muted"
         )}
       >
@@ -160,6 +173,7 @@ function SidebarNavItem({ item, pathname, depth = 0 }: SidebarNavItemProps) {
               item={child}
               pathname={pathname}
               depth={depth + 1}
+              collapsed={collapsed}
             />
           ))}
         </div>
@@ -171,19 +185,120 @@ function SidebarNavItem({ item, pathname, depth = 0 }: SidebarNavItemProps) {
 export function PlatformSidebar() {
   const pathname = usePathname()
   const activeSection = getActiveSection(pathname)
+  const [collapsed, setCollapsed] = useState(false)
 
-  if (!activeSection) return null
+  // Load collapsed state from localStorage
+  useEffect(() => {
+    const saved = localStorage.getItem("sidebar-collapsed")
+    if (saved !== null) {
+      setCollapsed(JSON.parse(saved))
+    }
+  }, [])
+
+  // Save collapsed state to localStorage
+  const toggleCollapsed = () => {
+    const newValue = !collapsed
+    setCollapsed(newValue)
+    localStorage.setItem("sidebar-collapsed", JSON.stringify(newValue))
+    // Dispatch custom event so navbar and layout can respond
+    window.dispatchEvent(new CustomEvent("sidebar-toggle", { detail: { collapsed: newValue } }))
+  }
+
+  const handleSidebarClick = (e: React.MouseEvent) => {
+    // Only expand if collapsed and clicking on the sidebar background (not on links/buttons)
+    if (collapsed && e.target === e.currentTarget) {
+      toggleCollapsed()
+    }
+  }
 
   return (
-    <aside className="w-64 border-r bg-card min-h-[calc(100vh-4rem)] p-4 sticky top-16">
-      <div className="mb-6">
-        <h2 className="text-lg font-semibold">{activeSection.title}</h2>
-      </div>
-      <nav className="space-y-2">
-        {activeSection.items.map((item) => (
-          <SidebarNavItem key={item.href} item={item} pathname={pathname} />
-        ))}
-      </nav>
-    </aside>
+    <TooltipProvider delayDuration={0}>
+      <aside
+        className={cn(
+          "border-r bg-card min-h-screen flex flex-col fixed left-0 top-0 z-40 transition-all duration-300",
+          collapsed ? "w-16 cursor-pointer" : "w-64"
+        )}
+        onClick={handleSidebarClick}
+      >
+        {/* Logo Section */}
+        <div className={cn(
+          "h-16 flex items-center",
+          collapsed ? "justify-center px-2" : "px-3"
+        )}>
+          <Link href="/" className="flex items-center space-x-2 overflow-hidden">
+            <Image
+              src="/logo.png"
+              alt="CryptoDotFun Logo"
+              width={32}
+              height={32}
+              className="rounded-md flex-shrink-0"
+            />
+            {!collapsed && (
+              <span className="text-lg font-bold text-white whitespace-nowrap">CryptoDotFun</span>
+            )}
+          </Link>
+        </div>
+
+        {/* Toggle button - tab on edge */}
+        <button
+          className="absolute top-1/2 -translate-y-1/2 -right-3 h-12 w-3 bg-card border border-l-0 border-border rounded-r-md shadow-sm z-50 flex items-center justify-center hover:bg-muted transition-colors"
+          onClick={toggleCollapsed}
+        >
+          {collapsed ? <ChevronRight className="h-3 w-3" /> : <ChevronLeft className="h-3 w-3" />}
+        </button>
+
+        {/* Navigation Section */}
+        <div
+          className="flex-1 p-2 overflow-y-auto"
+          onClick={collapsed ? toggleCollapsed : undefined}
+        >
+          {activeSection ? (
+            <div onClick={(e) => e.stopPropagation()}>
+              {!collapsed && (
+                <div className="mb-3 px-2">
+                  <h2 className="text-sm font-semibold text-muted-foreground">{activeSection.title}</h2>
+                </div>
+              )}
+              <nav className="space-y-1">
+                {activeSection.items.map((item) => (
+                  <SidebarNavItem
+                    key={item.href}
+                    item={item}
+                    pathname={pathname}
+                    collapsed={collapsed}
+                  />
+                ))}
+              </nav>
+            </div>
+          ) : (
+            !collapsed && (
+              <div className="text-sm text-muted-foreground px-2">
+                Select a section from the Explore menu
+              </div>
+            )
+          )}
+        </div>
+      </aside>
+    </TooltipProvider>
   )
+}
+
+export function useSidebarState() {
+  const [collapsed, setCollapsed] = useState(false)
+
+  useEffect(() => {
+    const saved = localStorage.getItem("sidebar-collapsed")
+    if (saved !== null) {
+      setCollapsed(JSON.parse(saved))
+    }
+
+    const handleToggle = (e: CustomEvent) => {
+      setCollapsed(e.detail.collapsed)
+    }
+
+    window.addEventListener("sidebar-toggle", handleToggle as EventListener)
+    return () => window.removeEventListener("sidebar-toggle", handleToggle as EventListener)
+  }, [])
+
+  return collapsed
 }

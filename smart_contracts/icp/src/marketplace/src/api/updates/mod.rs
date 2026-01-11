@@ -218,3 +218,9 @@ pub async fn add_items_to_candy_machine(
 
     candy_machine::add_items_to_candy_machine(collection_id, instruction_data).await
 }
+
+#[update]
+pub fn admin_remove_collection(collection_id: String) -> Result<String, String> {
+    let removed = state::remove_collection(&collection_id)?;
+    Ok(removed.id)
+}

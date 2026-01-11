@@ -1,7 +1,6 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
-import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -12,7 +11,7 @@ import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { ArrowLeft, Upload, Eye, CheckCircle, Info, Rocket, Check, Clock } from "lucide-react"
+import { Upload, Eye, CheckCircle, Info, Rocket, Check, Clock } from "lucide-react"
 import { saveDraft, loadDraft } from "@/lib/storage/draftStorage"
 import { useDebounce } from "@/hooks/useDebounce"
 import { useAuth } from "@/providers/auth-context"
@@ -375,9 +374,9 @@ export default function CreateMovementCollectionPage() {
       // Navigate to collection management page
       setTimeout(() => {
         if (formData.canisterRecordId) {
-          router.push(`/collections/movement/manage/${formData.canisterRecordId}`)
+          router.push(`/nft/collections/movement/manage/${formData.canisterRecordId}`)
         } else {
-          router.push(`/collections/my`)
+          router.push(`/nft/collections/my`)
         }
       }, 1000)
     } catch (error) {
@@ -439,40 +438,27 @@ export default function CreateMovementCollectionPage() {
   const progress = (currentStep / 3) * 100
 
   return (
-    <div className="container mx-auto px-4 py-24">
+    <div className="space-y-6">
       {(saveStatus === "saving" || saveStatus === "saved") && (
         <div className="fixed top-20 right-6 z-50 bg-background border rounded-lg shadow-lg px-4 py-2 flex items-center gap-2">
           {saveStatus === "saving" ? (
             <>
               <Clock className="h-4 w-4 text-muted-foreground animate-pulse" />
-              <span className="text-sm text-muted-foreground">Saving…</span>
+              <span className="text-sm text-muted-foreground">Saving...</span>
             </>
           ) : (
             <>
               <Check className="h-4 w-4 text-green-600" />
               <span className="text-sm text-muted-foreground">
                 All changes saved
-                {lastSaved && ` • ${formatTime(lastSaved)}`}
+                {lastSaved && ` - ${formatTime(lastSaved)}`}
               </span>
             </>
           )}
         </div>
       )}
 
-      <div className="mb-8">
-        <Button variant="ghost" asChild className="mb-4">
-          <Link href="/nft/create-collection">
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to Blockchain Selection
-          </Link>
-        </Button>
-        <h1 className="text-4xl font-bold mb-4">
-          Create Movement NFT Collection
-        </h1>
-        <p className="text-lg text-muted-foreground">
-          Launch your NFT collection on Movement using the Aptos Digital Asset standard
-        </p>
-      </div>
+      <h1 className="text-2xl font-bold">Launch on Movement</h1>
 
       {/* Progress Bar */}
       <div className="mb-8">

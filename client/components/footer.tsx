@@ -19,8 +19,7 @@ export default function Footer() {
               <h3 className="text-lg font-bold crypto-gradient-text">CryptoDotFun</h3>
             </div>
             <p className="text-sm text-muted-foreground">
-              Your blockchain education and engagement platform. Learn, earn, secure, and connect with the crypto
-              community.
+              Your all-in-one crypto platform. Trade NFTs, explore Bitcoin assets, and manage your portfolio across multiple chains.
             </p>
           </div>
           <div>

@@ -34,7 +34,7 @@ export function DraftCard({ draft, onDiscard }: DraftCardProps) {
   }
 
   const getBlockchainLink = (blockchain: string) => {
-    return `/nft/create-collection/${blockchain.toLowerCase()}`
+    return `/nft/launchpad/${blockchain.toLowerCase()}`
   }
 
   const getBlockchainColor = (blockchain: string) => {

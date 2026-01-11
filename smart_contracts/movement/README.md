@@ -34,7 +34,7 @@ movement account fund-with-faucet --account default
 cd launchpad
 
 # Compile
-movement move compile
+movement move compile --named-addresses nft_launchpad=default
 
 # Publish to testnet
 movement move publish --named-addresses nft_launchpad=default --assume-yes
@@ -46,11 +46,16 @@ movement move publish --named-addresses nft_launchpad=default --assume-yes
 cd marketplace
 
 # Compile
-movement move compile
+movement move compile --named-addresses marketplace_addr=default
 
 # Publish to testnet
 movement move publish --named-addresses marketplace_addr=default --assume-yes
 ```
+
+## Current Deployments (Testnet)
+
+- **Launchpad:** `0x38a24fb18c1e8aadf7037a15bf279a71f9a9ca158e46e9b1ca1cfd6be0834828`
+- **Marketplace:** `0x6f7ab492c91c86ee6f1c86bb1da9c4eae0de11e43ae7bd5e56b16a5696e458ff`
 
 ## Network Info
 
