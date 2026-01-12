@@ -109,7 +109,7 @@ export default function LandingPage() {
 
           {/* CTA Buttons */}
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-16">
-            <Link href="/nft/discover">
+            <Link href="/explore">
               <Button size="lg" className="btn-primary gap-2">
                 Launch App
                 <ArrowRight className="h-4 w-4" />

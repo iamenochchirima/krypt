@@ -14,13 +14,13 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { LogOut, User, Settings } from "lucide-react"
 import Link from "next/link"
 import RegistrationModal from "./registration/registration-modal"
-import WalletConnectionModal from "./wallet-connection-modal"
 import LoadingModal from "./loading-modal"
 import { useAuth } from "@/providers/auth-context"
+import { connectInternetIdentityWallet } from "@/providers/internetidentity"
+import { WalletType } from "@/providers/types"
 
 export default function AuthButton() {
-  const { isAuthenticated, user, logout, fetchingUser } = useAuth()
-  const [isWalletModalOpen, setIsWalletModalOpen] = useState(false)
+  const { isAuthenticated, user, logout, fetchingUser, login } = useAuth()
   const [isRegistrationModalOpen, setIsRegistrationModalOpen] = useState(false)
   const [isLoggingOut, setIsLoggingOut] = useState(false)
 
@@ -52,17 +52,17 @@ export default function AuthButton() {
   }, [isAuthenticated, user, fetchingUser, isLoggingOut])
 
   const handleLogin = () => {
-    setIsWalletModalOpen(true)
+    connectInternetIdentityWallet((success: boolean, walletType: WalletType) => {
+      if (success) {
+        login(walletType)
+      }
+    })
   }
 
   const handleLogout = () => {
     setIsLoggingOut(true)
     setIsRegistrationModalOpen(false) // Immediately close registration modal
     logout()
-  }
-
-  const closeWalletModal = () => {
-    setIsWalletModalOpen(false)
   }
 
   const closeRegistrationModal = () => {
@@ -119,18 +119,12 @@ export default function AuthButton() {
       </Button>
       
       {/* Loading Modal - shows when fetching user data */}
-      <LoadingModal 
+      <LoadingModal
         isOpen={fetchingUser}
         title="Authenticating..."
         description="Please wait while we verify your authentication."
       />
-      
-      {/* Wallet Connection Modal */}
-      <WalletConnectionModal 
-        isOpen={isWalletModalOpen} 
-        onClose={closeWalletModal} 
-      />
-      
+
       {/* Registration Modal - shows automatically when authenticated but no user */}
       <RegistrationModal 
         isOpen={isRegistrationModalOpen} 

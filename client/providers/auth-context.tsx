@@ -4,7 +4,6 @@ import { Actor, ActorSubclass, HttpAgent } from "@dfinity/agent";
 import { SessionData, useSessionData } from "./useSessionData";
 import { WalletType } from "./types";
 import { AuthClient } from "@dfinity/auth-client";
-import { getAuthClient } from "./nfid";
 import { aidFromPrincipal } from "./util";
 import { host, network } from "@/constants/urls";
 import { identityCertifierCanisterId, usersCanisterId, usersIDL, identityCertifierIDL, USERS_SERVICE, IDENTITY_CERTIFIER_SERVICE } from "@/constants/canisters-config";
@@ -81,13 +80,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const session = localStorage.getItem("session-data")
     if (session) {
       const sessionData: SessionData = JSON.parse(session);
-      switch (sessionData.connectedWalletType) {
-        case WalletType.InternetIdentity:
-          updateInternetIdentityClient();
-          break;
-        case WalletType.NFID:
-          updateNFIDClient();
-          break;
+      if (sessionData.connectedWalletType === WalletType.InternetIdentity) {
+        updateInternetIdentityClient();
       }
     }
   }, []);
@@ -114,15 +108,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const session = localStorage.getItem("session-data");
     if (session) {
       const sessionData = JSON.parse(session);
-      switch (sessionData.connectedWalletType) {
-        case WalletType.InternetIdentity:
-          const iiClient = await AuthClient.create();
-          iiClient.logout();
-          break;
-        case WalletType.NFID:
-          const nfidClient = await getAuthClient();
-          nfidClient.logout();
-          break;
+      if (sessionData.connectedWalletType === WalletType.InternetIdentity) {
+        const iiClient = await AuthClient.create();
+        iiClient.logout();
       }
     }
 
@@ -141,13 +129,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const updateClient = async (walletType: WalletType) => {
-    switch (walletType) {
-      case WalletType.InternetIdentity:
-        await updateInternetIdentityClient();
-        break;
-      case WalletType.NFID:
-        await updateNFIDClient();
-        break;
+    if (walletType === WalletType.InternetIdentity) {
+      await updateInternetIdentityClient();
     }
   };
 
@@ -188,56 +171,15 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-  const updateNFIDClient = async () => {
-    const authClient = await getAuthClient();
-    const isAuthenticated = await authClient.isAuthenticated();
-    setIsAuthenticated(isAuthenticated);
-    if (isAuthenticated) {
-      const identity = authClient.getIdentity();
-      setPrincipalId(identity.getPrincipal().toText());
-      setIdentity(identity);
-      const agent = await HttpAgent.create({
-        identity,
-        host: host,
-      });
-      if (network === "local") {
-        agent.fetchRootKey().catch((err) => {
-          console.log("Error fetching root key: ", err);
-        });
-      }
-      const _backendActor = Actor.createActor<USERS_SERVICE>(usersIDL, {
-        agent,
-        canisterId: usersCanisterId,
-      });
-      setUsersActor(_backendActor);
-      const _identityCertifierActor = Actor.createActor<IDENTITY_CERTIFIER_SERVICE>(identityCertifierIDL, {
-        agent,
-        canisterId: identityCertifierCanisterId,
-      });
-      setIdentityCertifierActor(_identityCertifierActor);
-      syncSessionData();
-    }
-  };
-
   const getPrincipalAddress = async (walletType: WalletType) => {
-    switch (walletType) {
-      case WalletType.InternetIdentity:
-        return getInternetIdentityPrincipalAddress();
-      case WalletType.NFID:
-        return getNFIDPrincipalAddress();
+    if (walletType === WalletType.InternetIdentity) {
+      return getInternetIdentityPrincipalAddress();
     }
+    return null;
   };
 
   const getInternetIdentityPrincipalAddress = async () => {
     const authClient = await AuthClient.create();
-    const identity = authClient.getIdentity();
-    const principalAddress = identity.getPrincipal().toText();
-    const aid = aidFromPrincipal(identity.getPrincipal());
-    return { principalAddress, aid, chainAddress: principalAddress };
-  };
-
-  const getNFIDPrincipalAddress = async () => {
-    const authClient = await getAuthClient();
     const identity = authClient.getIdentity();
     const principalAddress = identity.getPrincipal().toText();
     const aid = aidFromPrincipal(identity.getPrincipal());
