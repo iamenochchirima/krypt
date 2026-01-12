@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/providers/auth-context"
-import WalletConnectionModal from "@/components/wallet-connection-modal"
+import WalletModal from "@/connect-wallet/components/wallet-modal"
 
 interface AuthGuardProps {
   children: React.ReactNode
@@ -33,7 +33,7 @@ export default function AuthGuard({ children }: AuthGuardProps) {
   if (!isAuthenticated) {
     return (
       <>
-        <WalletConnectionModal
+        <WalletModal
           isOpen={showModal}
           onClose={() => setShowModal(false)}
         />
