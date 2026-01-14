@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/providers/auth-context"
-import { getMarketplaceActor } from "@/providers/actors/marketplace"
+import { getRegistryActor } from "@/providers/actors/marketplace"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -11,7 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Loader2, Plus, Settings, ExternalLink, Rocket } from "lucide-react"
 import { toast } from "sonner"
 import Link from "next/link"
-import { Collection } from "@/declarations/marketplace/marketplace.did"
+import { Collection } from "@/declarations/registry/registry.did"
 
 type Blockchain = "ICP" | "Solana" | "Ethereum" | "Bitcoin" | "Movement"
 
@@ -36,7 +36,7 @@ export default function MyCollectionsPage() {
   const loadCollections = async () => {
     try {
       setIsLoading(true)
-      const actor = await getMarketplaceActor(identity)
+      const actor = await getRegistryActor(identity)
 
       const collectionsResult = await actor.get_user_collections(0, 100)
       setCollections(collectionsResult)

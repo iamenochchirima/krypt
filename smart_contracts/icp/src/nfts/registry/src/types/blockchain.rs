@@ -6,9 +6,7 @@ pub enum Blockchain {
     ICP,
     Solana,
     Ethereum,
-    Bitcoin,
     Movement,
-    Casper,
 }
 
 impl Blockchain {
@@ -17,9 +15,7 @@ impl Blockchain {
             Blockchain::ICP => "icp",
             Blockchain::Solana => "solana",
             Blockchain::Ethereum => "ethereum",
-            Blockchain::Bitcoin => "bitcoin",
             Blockchain::Movement => "movement",
-            Blockchain::Casper => "casper",
         }
     }
 
@@ -28,9 +24,7 @@ impl Blockchain {
             "icp" => Some(Blockchain::ICP),
             "solana" => Some(Blockchain::Solana),
             "ethereum" => Some(Blockchain::Ethereum),
-            "bitcoin" => Some(Blockchain::Bitcoin),
             "movement" => Some(Blockchain::Movement),
-            "casper" => Some(Blockchain::Casper),
             _ => None,
         }
     }

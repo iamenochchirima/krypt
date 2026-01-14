@@ -10,6 +10,8 @@ pub struct AppConfig {
     pub ic_host: String,
     pub network: String,
     pub identity_pem_path: String,
+    pub helius_api_key: String,
+    pub helius_rpc_url: String,
 }
 
 impl AppConfig {
@@ -21,6 +23,15 @@ impl AppConfig {
         } else {
             "http://127.0.0.1:4943"
         };
+
+        let helius_api_key = env::var("HELIUS_API_KEY").unwrap_or_default();
+        let helius_rpc_url = env::var("HELIUS_RPC_URL").unwrap_or_else(|_| {
+            if environment == "production" {
+                format!("https://mainnet.helius-rpc.com/?api-key={}", helius_api_key)
+            } else {
+                format!("https://devnet.helius-rpc.com/?api-key={}", helius_api_key)
+            }
+        });
 
         Self {
             port: env::var("PORT")
@@ -36,6 +47,8 @@ impl AppConfig {
             network: network.to_string(),
             identity_pem_path: env::var("IDENTITY_PEM_PATH")
                 .unwrap_or_else(|_| "./dotfun_admin.pem".to_string()),
+            helius_api_key,
+            helius_rpc_url,
         }
     }
 
@@ -59,6 +72,8 @@ impl Default for AppConfig {
             network: "local".to_string(),
             redis_url: "".to_string(),
             identity_pem_path: "./dotfun_admin.pem".to_string(),
+            helius_api_key: "".to_string(),
+            helius_rpc_url: "https://devnet.helius-rpc.com".to_string(),
         }
     }
 }

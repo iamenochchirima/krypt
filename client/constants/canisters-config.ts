@@ -1,10 +1,12 @@
 export type { _SERVICE as USERS_SERVICE } from "../declarations/users/users.did";
 export type { _SERVICE as IDENTITY_CERTIFIER_SERVICE } from "../declarations/identity_certifier/identity_certifier.did";
-export  type { _SERVICE as MARKETPLACE_SERVICE } from "../declarations/marketplace/marketplace.did";
+export type { _SERVICE as MARKETPLACE_SERVICE } from "../declarations/marketplace/marketplace.did";
+export type { _SERVICE as REGISTRY_SERVICE } from "../declarations/registry/registry.did";
 
 export { idlFactory as usersIDL } from "../declarations/users/users.did.js";
 export { idlFactory as marketplaceIDL } from "../declarations/marketplace/marketplace.did.js";
 export { idlFactory as identityCertifierIDL } from "../declarations/identity_certifier/identity_certifier.did.js";
+export { idlFactory as registryIDL } from "../declarations/registry/registry.did.js";
 
 const network = process.env.NEXT_PUBLIC_ENVIRONMENT || "local";
 
@@ -62,6 +64,7 @@ interface CanisterConfig {
   identityCertifierCanisterId: string;
   internetIdentityCanisterId: string;
   marketplaceCanisterId: string;
+  registryCanisterId: string;
 }
 
 const productionCanisters: CanisterConfig = {
@@ -69,6 +72,7 @@ const productionCanisters: CanisterConfig = {
   identityCertifierCanisterId: getCanisterId("identity_certifier"),
   internetIdentityCanisterId: "internet_identity",
   marketplaceCanisterId: getCanisterId("marketplace"),
+  registryCanisterId: getCanisterId("registry"),
 };
 
 const localCanisters: CanisterConfig = {
@@ -76,6 +80,7 @@ const localCanisters: CanisterConfig = {
   identityCertifierCanisterId: getCanisterId("identity_certifier"),
   internetIdentityCanisterId: getCanisterId("internet_identity"),
   marketplaceCanisterId: getCanisterId("marketplace"),
+  registryCanisterId: getCanisterId("registry"),
 };
 
 const canisterConfigs: Record<Env, CanisterConfig> = {
@@ -88,4 +93,5 @@ export const {
   internetIdentityCanisterId,
   identityCertifierCanisterId,
   marketplaceCanisterId,
+  registryCanisterId,
 } = canisterConfigs[network as Env];

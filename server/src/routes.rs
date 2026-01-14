@@ -6,6 +6,7 @@ use crate::controllers::{
     users::{test_connection},
     drafts::{create_draft, get_draft, get_user_drafts, update_draft, delete_draft},
     uploads::{upload_draft_image, batch_upload_nft_assets},
+    nfts::{get_collection_nfts, get_asset, get_assets_by_owner},
 };
 
 pub fn configure_routes(cfg: &mut ServiceConfig) {
@@ -51,5 +52,12 @@ pub fn configure_routes(cfg: &mut ServiceConfig) {
             web::scope("/api/uploads")
                 .route("/draft-image", web::post().to(upload_draft_image))
                 .route("/batch-nft-assets", web::post().to(batch_upload_nft_assets))
+        )
+
+        .service(
+            web::scope("/api/nfts")
+                .route("/collection/{mint}", web::get().to(get_collection_nfts))
+                .route("/asset/{id}", web::get().to(get_asset))
+                .route("/owner/{address}", web::get().to(get_assets_by_owner))
         );
 }

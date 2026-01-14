@@ -11,13 +11,35 @@ import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Upload, Eye, CheckCircle, Info, Rocket, Check, Clock } from "lucide-react"
+import { Upload, Eye, CheckCircle, Info, Rocket, Check, Clock, Loader2, ExternalLink } from "lucide-react"
 import { saveDraft, loadDraft } from "@/lib/storage/draftStorage"
 import { useDebounce } from "@/hooks/useDebounce"
 import { useAuth } from "@/providers/auth-context"
-import { getMarketplaceActor } from "@/providers/actors/marketplace"
+import { getRegistryActor } from "@/providers/actors/marketplace"
 import { uploadToStorage, StorageProvider } from "@/lib/storage"
 import { toast } from "sonner"
+import { useWallet } from "@solana/wallet-adapter-react"
+import { createUmi } from "@metaplex-foundation/umi-bundle-defaults"
+import {
+  createNft,
+  mplTokenMetadata,
+  TokenStandard,
+  fetchDigitalAsset,
+} from "@metaplex-foundation/mpl-token-metadata"
+import {
+  create,
+  addConfigLines,
+  mplCandyMachine,
+} from "@metaplex-foundation/mpl-candy-machine"
+import {
+  generateSigner,
+  percentAmount,
+  some,
+  sol,
+  dateTime,
+  publicKey as umiPublicKey,
+} from "@metaplex-foundation/umi"
+import { walletAdapterIdentity } from "@metaplex-foundation/umi-signer-wallet-adapters"
 
 interface CollectionFormData {
   name: string
@@ -27,16 +49,22 @@ interface CollectionFormData {
   maxSupply: string
   unlimitedSupply: boolean
   royaltyBps: string
+  mintPrice: string
   collectionId?: string
   manifestUrl?: string
   canisterRecordId?: string
+  candyMachineAddress?: string
+  collectionMintAddress?: string
 }
 
 type SaveStatus = "saving" | "saved" | "idle"
 
+const SOLANA_RPC_URL = process.env.NEXT_PUBLIC_SOLANA_RPC_URL || "https://api.devnet.solana.com"
+
 export default function CreateSolanaCollectionPage() {
   const router = useRouter()
   const { identity } = useAuth()
+  const { publicKey, connected, signTransaction, signAllTransactions } = useWallet()
 
   const draftId = "solana-draft"
   const [currentStep, setCurrentStep] = useState(1)
@@ -48,6 +76,7 @@ export default function CreateSolanaCollectionPage() {
     maxSupply: "10000",
     unlimitedSupply: false,
     royaltyBps: "500",
+    mintPrice: "0.01",
   })
   const [collectionImage, setCollectionImage] = useState<File | null>(null)
   const [nftAssets, setNftAssets] = useState<FileList | null>(null)
@@ -121,7 +150,7 @@ export default function CreateSolanaCollectionPage() {
   const steps = [
     { id: 1, title: "Basic Info", description: "Collection details" },
     { id: 2, title: "Assets", description: "Upload artwork & metadata" },
-    { id: 3, title: "Review", description: "Verify & deploy" },
+    { id: 3, title: "Deploy", description: "Deploy to Solana" },
   ]
 
   const handleNext = async () => {
@@ -139,7 +168,7 @@ export default function CreateSolanaCollectionPage() {
         setIsUploading(true)
         setUploadProgress("Creating collection record...")
 
-        const actor = await getMarketplaceActor(identity)
+        const actor = await getRegistryActor(identity)
 
         const createResult = await actor.create_collection({
           blockchain: { Solana: null },
@@ -155,10 +184,15 @@ export default function CreateSolanaCollectionPage() {
           ],
           chain_data: {
             Solana: {
-              deployment_stage: { FilesUploaded: null },
-              collection_address: [],
-              collection_created: false,
+              deployment_stage: { FilesUploading: null },
+              candy_machine_address: [],
+              collection_mint: [],
               manifest_url: [formData.manifestUrl],
+              files_uploaded: true,
+              metadata_created: false,
+              candy_machine_items_uploaded: false,
+              candy_machine_authority: [],
+              candy_machine_config: [],
             }
           }
         })
@@ -223,9 +257,206 @@ export default function CreateSolanaCollectionPage() {
   }
 
   const handleDeployClick = async () => {
-    toast.info("Solana deployment coming soon", {
-      description: "Solana NFT deployment is currently under development"
-    })
+    if (!connected || !publicKey || !signTransaction || !signAllTransactions) {
+      toast.error("Please connect your Solana wallet")
+      return
+    }
+
+    if (!formData.manifestUrl) {
+      toast.error("Please upload assets first")
+      return
+    }
+
+    try {
+      setIsDeploying(true)
+
+      // Step 1: Create UMI instance
+      setDeploymentStep("Initializing...")
+      const umi = createUmi(SOLANA_RPC_URL)
+        .use(walletAdapterIdentity({ publicKey, signTransaction, signAllTransactions }))
+        .use(mplTokenMetadata())
+        .use(mplCandyMachine())
+
+      const finalizedOptions = {
+        send: { commitment: 'finalized' as const },
+        confirm: { commitment: 'finalized' as const },
+      }
+
+      const confirmOptions = {
+        send: { commitment: 'confirmed' as const },
+        confirm: { commitment: 'confirmed' as const },
+      }
+
+      // Step 2: Generate signers
+      setDeploymentStep("Generating keypairs...")
+      const candyMachine = generateSigner(umi)
+      const collectionMint = generateSigner(umi)
+
+      console.log('Candy Machine:', candyMachine.publicKey.toString())
+      console.log('Collection Mint:', collectionMint.publicKey.toString())
+
+      // Step 3: Create Collection NFT
+      setDeploymentStep("Creating Collection NFT...")
+      await createNft(umi, {
+        mint: collectionMint,
+        authority: umi.identity,
+        name: formData.name,
+        uri: formData.manifestUrl,
+        sellerFeeBasisPoints: percentAmount(parseFloat(formData.royaltyBps) / 100, 2),
+        isCollection: true,
+        collectionDetails: {
+          __kind: 'V1',
+          size: 0,
+        },
+      }).sendAndConfirm(umi, finalizedOptions)
+
+      // Step 4: Verify collection exists
+      setDeploymentStep("Verifying collection...")
+      let retries = 5
+      let collectionVerified = false
+      while (retries > 0 && !collectionVerified) {
+        try {
+          await fetchDigitalAsset(umi, collectionMint.publicKey)
+          collectionVerified = true
+        } catch {
+          retries--
+          if (retries > 0) {
+            await new Promise(resolve => setTimeout(resolve, 2000))
+          }
+        }
+      }
+
+      if (!collectionVerified) {
+        throw new Error('Failed to verify collection NFT')
+      }
+
+      // Step 5: Create Candy Machine
+      setDeploymentStep("Creating Candy Machine...")
+      const itemsAvailable = Math.max(1, parseInt(formData.maxSupply || '1'))
+
+      const createBuilder = await create(umi, {
+        candyMachine,
+        collectionMint: collectionMint.publicKey,
+        collectionUpdateAuthority: umi.identity,
+        tokenStandard: TokenStandard.NonFungible,
+        sellerFeeBasisPoints: percentAmount(parseFloat(formData.royaltyBps) / 100, 2),
+        itemsAvailable: itemsAvailable,
+        symbol: formData.symbol,
+        maxEditionSupply: 0,
+        isMutable: true,
+        creators: [
+          {
+            address: umi.identity.publicKey,
+            verified: true,
+            percentageShare: 100,
+          },
+        ],
+        configLineSettings: some({
+          prefixName: '',
+          nameLength: 32,
+          prefixUri: '',
+          uriLength: 200,
+          isSequential: false,
+        }),
+        guards: {
+          botTax: some({ lamports: sol(0.001), lastInstruction: true }),
+          solPayment: some({
+            lamports: sol(parseFloat(formData.mintPrice)),
+            destination: umi.identity.publicKey,
+          }),
+          startDate: some({ date: dateTime(new Date().toISOString()) }),
+        },
+      })
+
+      await createBuilder.sendAndConfirm(umi, confirmOptions)
+
+      console.log('Candy Machine created:', candyMachine.publicKey.toString())
+
+      // Step 6: Insert config lines from manifest
+      setDeploymentStep("Fetching NFT metadata...")
+      const manifestResponse = await fetch(formData.manifestUrl)
+      const manifestData = await manifestResponse.json()
+      const files = manifestData.properties?.files || []
+
+      if (files.length > 0) {
+        setDeploymentStep("Inserting NFT items...")
+        const items = files.map((file: any, index: number) => ({
+          name: `${index}`,
+          uri: file.uri,
+        }))
+
+        const BATCH_SIZE = 5
+        const batches = []
+        for (let i = 0; i < items.length; i += BATCH_SIZE) {
+          batches.push(items.slice(i, i + BATCH_SIZE))
+        }
+
+        let currentIndex = 0
+        for (let i = 0; i < batches.length; i++) {
+          const batch = batches[i]
+          setDeploymentStep(`Inserting items ${currentIndex + 1}-${currentIndex + batch.length} of ${items.length}...`)
+
+          const configLinesBuilder = addConfigLines(umi, {
+            candyMachine: candyMachine.publicKey,
+            index: currentIndex,
+            configLines: batch,
+          })
+
+          await configLinesBuilder.sendAndConfirm(umi, confirmOptions)
+
+          currentIndex += batch.length
+        }
+      }
+
+      // Step 7: Update registry
+      setDeploymentStep("Updating registry...")
+      const actor = await getRegistryActor(identity)
+
+      if (formData.canisterRecordId) {
+        await actor.update_solana_stage({
+          collection_id: formData.canisterRecordId,
+          stage: { Deployed: null },
+          candy_machine_address: [candyMachine.publicKey.toString()],
+          collection_mint: [collectionMint.publicKey.toString()],
+          manifest_url: [formData.manifestUrl],
+          files_uploaded: [true],
+          metadata_created: [true],
+          candy_machine_authority: [publicKey.toString()],
+          candy_machine_config: [{
+            price: BigInt(Math.floor(parseFloat(formData.mintPrice) * 1_000_000_000)),
+            go_live_date: [BigInt(Date.now())],
+            items_available: BigInt(itemsAvailable),
+            seller_fee_basis_points: parseInt(formData.royaltyBps),
+            symbol: formData.symbol,
+          }],
+        })
+      }
+
+      // Save to form data
+      const updatedFormData = {
+        ...formData,
+        candyMachineAddress: candyMachine.publicKey.toString(),
+        collectionMintAddress: collectionMint.publicKey.toString(),
+      }
+      setFormData(updatedFormData)
+      await saveDraft(draftId, updatedFormData, collectionImage || undefined, nftAssets || undefined)
+
+      toast.success("Collection deployed successfully!", {
+        description: `Candy Machine: ${candyMachine.publicKey.toString().slice(0, 8)}...`,
+      })
+
+      // Redirect to manage page
+      router.push(`/nft/collections/solana/manage/${formData.canisterRecordId}`)
+
+    } catch (error: any) {
+      console.error('Deployment failed:', error)
+      toast.error("Deployment failed", {
+        description: error?.message || "Check console for details",
+      })
+    } finally {
+      setIsDeploying(false)
+      setDeploymentStep("")
+    }
   }
 
   const handleStorageUpload = async () => {
@@ -388,42 +619,59 @@ export default function CreateSolanaCollectionPage() {
                     />
                   </div>
 
-                  <div className="space-y-4">
-                    <div className="flex items-center space-x-2">
-                      <Checkbox
-                        id="unlimitedSupply"
-                        checked={formData.unlimitedSupply}
-                        onCheckedChange={(checked) =>
-                          handleInputChange("unlimitedSupply", checked as boolean)
-                        }
-                      />
-                      <Label
-                        htmlFor="unlimitedSupply"
-                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
-                      >
-                        Unlimited Supply
-                      </Label>
-                    </div>
-
-                    {!formData.unlimitedSupply && (
-                      <div className="space-y-2">
-                        <Label htmlFor="maxSupply">Maximum Supply *</Label>
-                        <Input
-                          id="maxSupply"
-                          type="number"
-                          min="1"
-                          max="1000000"
-                          placeholder="10000"
-                          value={formData.maxSupply}
-                          onChange={(e) =>
-                            handleInputChange("maxSupply", e.target.value)
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-4">
+                      <div className="flex items-center space-x-2">
+                        <Checkbox
+                          id="unlimitedSupply"
+                          checked={formData.unlimitedSupply}
+                          onCheckedChange={(checked) =>
+                            handleInputChange("unlimitedSupply", checked as boolean)
                           }
                         />
-                        <p className="text-xs text-muted-foreground">
-                          Maximum number of NFTs in this collection
-                        </p>
+                        <Label
+                          htmlFor="unlimitedSupply"
+                          className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                        >
+                          Unlimited Supply
+                        </Label>
                       </div>
-                    )}
+
+                      {!formData.unlimitedSupply && (
+                        <div className="space-y-2">
+                          <Label htmlFor="maxSupply">Maximum Supply *</Label>
+                          <Input
+                            id="maxSupply"
+                            type="number"
+                            min="1"
+                            max="1000000"
+                            placeholder="10000"
+                            value={formData.maxSupply}
+                            onChange={(e) =>
+                              handleInputChange("maxSupply", e.target.value)
+                            }
+                          />
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="mintPrice">Mint Price (SOL) *</Label>
+                      <Input
+                        id="mintPrice"
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        placeholder="0.01"
+                        value={formData.mintPrice}
+                        onChange={(e) =>
+                          handleInputChange("mintPrice", e.target.value)
+                        }
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Price per NFT in SOL
+                      </p>
+                    </div>
                   </div>
 
                   <div className="space-y-2">
@@ -453,7 +701,7 @@ export default function CreateSolanaCollectionPage() {
                         </div>
                         <div className="text-purple-700 dark:text-purple-200">
                           Your collection will be deployed on Solana using the
-                          Metaplex standard with metadata stored on IPFS or Arweave
+                          Metaplex Candy Machine V3 standard
                         </div>
                       </div>
                     </div>
@@ -569,15 +817,13 @@ export default function CreateSolanaCollectionPage() {
                               </p>
                             </div>
                           </div>
-                          <div className="flex gap-2 justify-center">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => setNftAssets(null)}
-                            >
-                              Remove
-                            </Button>
-                          </div>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setNftAssets(null)}
+                          >
+                            Remove
+                          </Button>
                         </div>
                       ) : (
                         <>
@@ -614,18 +860,18 @@ export default function CreateSolanaCollectionPage() {
                         <CheckCircle className="h-5 w-5 text-green-600 mt-0.5 flex-shrink-0" />
                         <div className="text-sm">
                           <div className="font-medium text-green-900 dark:text-green-100 mb-1">
-                            Files Already Uploaded
+                            Files Uploaded
                           </div>
                           <div className="text-green-700 dark:text-green-200 mb-2">
-                            Your collection files have been uploaded. You can proceed to the next step or re-upload if needed.
+                            Your collection files have been uploaded to IPFS.
                           </div>
                           <a
                             href={formData.manifestUrl}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-xs text-green-600 hover:underline break-all"
+                            className="text-xs text-green-600 hover:underline break-all flex items-center gap-1"
                           >
-                            View Manifest: {formData.manifestUrl}
+                            View Manifest <ExternalLink className="h-3 w-3" />
                           </a>
                         </div>
                       </div>
@@ -635,7 +881,7 @@ export default function CreateSolanaCollectionPage() {
                   {isUploading && uploadProgress && (
                     <div className="bg-blue-50 dark:bg-blue-950/20 p-4 rounded-lg">
                       <div className="flex items-center gap-3">
-                        <Upload className="h-5 w-5 text-blue-600 animate-spin" />
+                        <Loader2 className="h-5 w-5 text-blue-600 animate-spin" />
                         <div className="text-sm font-medium text-blue-900 dark:text-blue-100">
                           {uploadProgress}
                         </div>
@@ -647,16 +893,29 @@ export default function CreateSolanaCollectionPage() {
 
               {currentStep === 3 && (
                 <div className="space-y-6">
-                  <div className="text-center py-8">
-                    <Rocket className="mx-auto h-16 w-16 text-purple-600 mb-4" />
-                    <h3 className="text-2xl font-bold mb-2">
-                      Ready to Deploy!
-                    </h3>
-                    <p className="text-muted-foreground">
-                      Review your collection and deploy to Solana
-                    </p>
+                  {/* Wallet Connection Status */}
+                  <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
+                    <div>
+                      <div className="font-medium">Solana Wallet</div>
+                      <div className="text-sm text-muted-foreground">
+                        {connected
+                          ? `Connected: ${publicKey?.toString().slice(0, 8)}...${publicKey?.toString().slice(-4)}`
+                          : "Not connected"}
+                      </div>
+                    </div>
+                    {connected ? (
+                      <Badge variant="secondary" className="bg-green-100 text-green-900 dark:bg-green-900 dark:text-green-100">
+                        <CheckCircle className="h-3 w-3 mr-1" />
+                        Connected
+                      </Badge>
+                    ) : (
+                      <Badge variant="secondary" className="bg-yellow-100 text-yellow-900 dark:bg-yellow-900 dark:text-yellow-100">
+                        Disconnected
+                      </Badge>
+                    )}
                   </div>
 
+                  {/* Collection Summary */}
                   <div className="space-y-4">
                     <h4 className="font-semibold">Collection Summary</h4>
                     <div className="space-y-2 bg-muted/50 p-4 rounded-lg">
@@ -675,6 +934,10 @@ export default function CreateSolanaCollectionPage() {
                         </span>
                       </div>
                       <div className="flex justify-between">
+                        <span className="text-muted-foreground">Mint Price:</span>
+                        <span className="font-medium">{formData.mintPrice} SOL</span>
+                      </div>
+                      <div className="flex justify-between">
                         <span className="text-muted-foreground">Royalty:</span>
                         <span className="font-medium">
                           {Number(formData.royaltyBps) / 100}%
@@ -683,39 +946,64 @@ export default function CreateSolanaCollectionPage() {
                     </div>
                   </div>
 
+                  {/* Deployment Progress */}
                   <div className="space-y-4">
                     <h4 className="font-semibold">Deployment Steps</h4>
                     <div className="space-y-2">
                       <div className="flex items-center gap-2">
                         <CheckCircle className="h-4 w-4 text-green-600" />
-                        <span className="text-sm">Files uploaded to storage</span>
+                        <span className="text-sm">Files uploaded to IPFS</span>
                       </div>
                       <div className="flex items-center gap-2">
                         <CheckCircle className="h-4 w-4 text-green-600" />
-                        <span className="text-sm">Collection record created</span>
+                        <span className="text-sm">Registry record created</span>
                       </div>
                       <div className="flex items-center gap-2">
-                        <div className="h-4 w-4 rounded-full border-2 border-purple-600 flex items-center justify-center">
-                          <div className="h-2 w-2 rounded-full bg-purple-600" />
-                        </div>
-                        <span className="text-sm font-medium">Deploy collection on Solana</span>
+                        {formData.candyMachineAddress ? (
+                          <CheckCircle className="h-4 w-4 text-green-600" />
+                        ) : isDeploying ? (
+                          <Loader2 className="h-4 w-4 animate-spin text-purple-600" />
+                        ) : (
+                          <div className="h-4 w-4 rounded-full border-2 border-purple-600" />
+                        )}
+                        <span className="text-sm font-medium">
+                          {isDeploying ? deploymentStep : "Deploy Candy Machine"}
+                        </span>
                       </div>
                     </div>
                   </div>
 
-                  <div className="bg-yellow-50 dark:bg-yellow-950/20 p-4 rounded-lg">
-                    <div className="flex items-start gap-3">
-                      <Info className="h-5 w-5 text-yellow-600 mt-0.5 flex-shrink-0" />
-                      <div className="text-sm">
-                        <div className="font-medium text-yellow-900 dark:text-yellow-100 mb-1">
-                          Coming Soon
-                        </div>
-                        <div className="text-yellow-700 dark:text-yellow-200">
-                          Solana deployment is currently under development. You can prepare your collection now.
+                  {formData.candyMachineAddress && (
+                    <div className="bg-green-50 dark:bg-green-950/20 p-4 rounded-lg">
+                      <div className="flex items-start gap-3">
+                        <CheckCircle className="h-5 w-5 text-green-600 mt-0.5" />
+                        <div className="text-sm">
+                          <div className="font-medium text-green-900 dark:text-green-100 mb-2">
+                            Deployed Successfully!
+                          </div>
+                          <div className="space-y-1 text-green-700 dark:text-green-200">
+                            <p className="font-mono text-xs break-all">
+                              Candy Machine: {formData.candyMachineAddress}
+                            </p>
+                            <p className="font-mono text-xs break-all">
+                              Collection: {formData.collectionMintAddress}
+                            </p>
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
+                  )}
+
+                  {!connected && (
+                    <div className="bg-yellow-50 dark:bg-yellow-950/20 p-4 rounded-lg">
+                      <div className="flex items-start gap-3">
+                        <Info className="h-5 w-5 text-yellow-600 mt-0.5" />
+                        <div className="text-sm text-yellow-900 dark:text-yellow-100">
+                          Please connect your Solana wallet using the wallet button in the navigation bar to deploy your collection.
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </CardContent>
@@ -725,7 +1013,7 @@ export default function CreateSolanaCollectionPage() {
             <Button
               variant="outline"
               onClick={handlePrevious}
-              disabled={currentStep === 1 || isUploading}
+              disabled={currentStep === 1 || isUploading || isDeploying}
             >
               Previous
             </Button>
@@ -744,7 +1032,7 @@ export default function CreateSolanaCollectionPage() {
                   >
                     {isUploading ? (
                       <>
-                        <Upload className="mr-2 h-4 w-4 animate-spin" />
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                         Uploading...
                       </>
                     ) : formData.manifestUrl ? (
@@ -765,13 +1053,18 @@ export default function CreateSolanaCollectionPage() {
               ) : (
                 <Button
                   onClick={handleDeployClick}
-                  disabled={isDeploying}
+                  disabled={isDeploying || !connected || !!formData.candyMachineAddress}
                   className="bg-purple-600 hover:bg-purple-700"
                 >
                   {isDeploying ? (
                     <>
-                      <Upload className="mr-2 h-4 w-4 animate-spin" />
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                       {deploymentStep || "Deploying..."}
+                    </>
+                  ) : formData.candyMachineAddress ? (
+                    <>
+                      <CheckCircle className="mr-2 h-4 w-4" />
+                      Deployed
                     </>
                   ) : (
                     <>
@@ -829,11 +1122,15 @@ export default function CreateSolanaCollectionPage() {
                 </div>
                 <div className="flex justify-between text-sm">
                   <span>Standard:</span>
-                  <span className="text-xs">Metaplex</span>
+                  <span className="text-xs">Candy Machine V3</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span>Supply:</span>
                   <span>{formData.unlimitedSupply ? "Unlimited" : formData.maxSupply || "0"}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span>Mint Price:</span>
+                  <span>{formData.mintPrice || "0"} SOL</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span>Royalty:</span>

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { useAuth } from "@/providers/auth-context"
-import { getMarketplaceActor } from "@/providers/actors/marketplace"
+import { getRegistryActor } from "@/providers/actors/marketplace"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Loader2, ExternalLink, Copy, CheckCircle2, Coins, ArrowLeft } from "lucide-react"
 import { toast } from "sonner"
-import { Collection } from "@/declarations/marketplace/marketplace.did"
+import { Collection } from "@/declarations/registry/registry.did"
 import { useMovementWallet } from "@/connect-wallet/hooks/useMovementWallet"
 import { getCollectionAddress, buildMintTokenPayload } from "@/lib/movement/collection"
 import { Aptos, AptosConfig, Network } from "@aptos-labs/ts-sdk"
@@ -160,7 +160,7 @@ export default function ManageMovementCollectionPage() {
     }
     try {
       setIsLoading(true)
-      const actor = await getMarketplaceActor(identity)
+      const actor = await getRegistryActor(identity)
 
       const result = await actor.get_collection(collectionId)
       if (!result || result.length === 0) {

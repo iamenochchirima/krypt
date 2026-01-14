@@ -1,9 +1,4 @@
-type BitcoinCollectionData = record {
-  deployment_stage : BitcoinDeploymentStage;
-  inscription_ids : vec text;
-};
-type BitcoinDeploymentStage = variant { InscriptionsCreating; Deployed };
-type Blockchain = variant { ICP; Ethereum; Solana; Bitcoin; Movement; Casper };
+type Blockchain = variant { ICP; Ethereum; Solana; Movement };
 type CandyMachineConfig = record {
   seller_fee_basis_points : nat16;
   items_available : nat64;
@@ -11,39 +6,11 @@ type CandyMachineConfig = record {
   price : nat64;
   symbol : text;
 };
-type CasperCollectionData = record {
-  contract_hash : opt text;
-  holder_mode : opt nat8;
-  events_mode : opt nat8;
-  owner_reverse_lookup_mode : opt nat8;
-  ownership_mode : nat8;
-  burn_mode : opt nat8;
-  metadata_mutability : nat8;
-  json_schema : text;
-  contract_package_hash : opt text;
-  nft_kind : opt nat8;
-  allow_minting : opt bool;
-  whitelist_mode : opt nat8;
-  minting_mode : opt nat8;
-  deployment_stage : CasperDeploymentStage;
-  identifier_mode : nat8;
-  total_token_supply : nat64;
-  nft_metadata_kind : nat8;
-};
-type CasperDeploymentStage = variant {
-  ContractDeploying;
-  Minting;
-  ContractPreparing;
-  Deployed;
-  ContractDeployed;
-};
 type ChainData = variant {
   ICP : ICPCollectionData;
   Ethereum : EthereumCollectionData;
   Solana : SolanaCollectionData;
-  Bitcoin : BitcoinCollectionData;
   Movement : MovementCollectionData;
-  Casper : CasperCollectionData;
 };
 type Collection = record {
   id : text;
@@ -102,7 +69,6 @@ type MovementCollectionData = record {
   deployment_stage : MovementDeploymentStage;
 };
 type MovementDeploymentStage = variant {
-  FilesUploaded;
   Deployed;
   FilesUploading;
   CollectionDeploying;
@@ -122,31 +88,9 @@ type SolanaCollectionData = record {
 };
 type SolanaDeploymentStage = variant {
   CandyMachineDeploying;
-  MetadataCreated;
-  FilesUploaded;
   Deployed;
   FilesUploading;
   MetadataCreating;
-};
-type UpdateCasperStageArgs = record {
-  contract_hash : opt text;
-  holder_mode : opt nat8;
-  events_mode : opt nat8;
-  owner_reverse_lookup_mode : opt nat8;
-  collection_id : text;
-  ownership_mode : opt nat8;
-  burn_mode : opt nat8;
-  metadata_mutability : opt nat8;
-  json_schema : opt text;
-  contract_package_hash : opt text;
-  nft_kind : opt nat8;
-  allow_minting : opt bool;
-  stage : CasperDeploymentStage;
-  whitelist_mode : opt nat8;
-  minting_mode : opt nat8;
-  identifier_mode : opt nat8;
-  total_token_supply : opt nat64;
-  nft_metadata_kind : opt nat8;
 };
 type UpdateCollectionStatusArgs = record {
   status : CollectionStatus;
@@ -172,7 +116,6 @@ type UpdateSolanaStageArgs = record {
 };
 service : (InitArgs) -> {
   admin_remove_collection : (text) -> (Result);
-  clear_old_collections : () -> (Result_1);
   create_collection : (CreateCollectionArgs) -> (Result);
   get_all_collections : (nat32, nat32) -> (vec Collection) query;
   get_all_draft_collections : (nat32, nat32) -> (vec Collection) query;
@@ -182,10 +125,7 @@ service : (InitArgs) -> {
     ) query;
   get_creator_draft_collections : (principal) -> (vec Collection) query;
   get_my_draft_collections : () -> (vec Collection) query;
-  get_old_collections_count : () -> (nat64) query;
   get_user_collections : (nat32, nat32) -> (vec Collection) query;
-  migrate_collections : () -> ();
-  update_casper_stage : (UpdateCasperStageArgs) -> (Result_1);
   update_collection_status : (UpdateCollectionStatusArgs) -> (Result_1);
   update_movement_stage : (UpdateMovementStageArgs) -> (Result_1);
   update_solana_stage : (UpdateSolanaStageArgs) -> (Result_1);

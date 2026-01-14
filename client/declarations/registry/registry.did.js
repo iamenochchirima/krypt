@@ -1,14 +1,11 @@
 export const idlFactory = ({ IDL }) => {
   const InitArgs = IDL.Record({ 'admin' : IDL.Principal });
   const Result = IDL.Variant({ 'Ok' : IDL.Text, 'Err' : IDL.Text });
-  const Result_1 = IDL.Variant({ 'Ok' : IDL.Null, 'Err' : IDL.Text });
   const Blockchain = IDL.Variant({
     'ICP' : IDL.Null,
     'Ethereum' : IDL.Null,
     'Solana' : IDL.Null,
-    'Bitcoin' : IDL.Null,
     'Movement' : IDL.Null,
-    'Casper' : IDL.Null,
   });
   const ICPDeploymentStage = IDL.Variant({
     'CanisterDeploying' : IDL.Null,
@@ -37,8 +34,6 @@ export const idlFactory = ({ IDL }) => {
   });
   const SolanaDeploymentStage = IDL.Variant({
     'CandyMachineDeploying' : IDL.Null,
-    'MetadataCreated' : IDL.Null,
-    'FilesUploaded' : IDL.Null,
     'Deployed' : IDL.Null,
     'FilesUploading' : IDL.Null,
     'MetadataCreating' : IDL.Null,
@@ -54,16 +49,7 @@ export const idlFactory = ({ IDL }) => {
     'candy_machine_items_uploaded' : IDL.Bool,
     'candy_machine_authority' : IDL.Opt(IDL.Text),
   });
-  const BitcoinDeploymentStage = IDL.Variant({
-    'InscriptionsCreating' : IDL.Null,
-    'Deployed' : IDL.Null,
-  });
-  const BitcoinCollectionData = IDL.Record({
-    'deployment_stage' : BitcoinDeploymentStage,
-    'inscription_ids' : IDL.Vec(IDL.Text),
-  });
   const MovementDeploymentStage = IDL.Variant({
-    'FilesUploaded' : IDL.Null,
     'Deployed' : IDL.Null,
     'FilesUploading' : IDL.Null,
     'CollectionDeploying' : IDL.Null,
@@ -74,39 +60,11 @@ export const idlFactory = ({ IDL }) => {
     'collection_created' : IDL.Bool,
     'deployment_stage' : MovementDeploymentStage,
   });
-  const CasperDeploymentStage = IDL.Variant({
-    'ContractDeploying' : IDL.Null,
-    'Minting' : IDL.Null,
-    'ContractPreparing' : IDL.Null,
-    'Deployed' : IDL.Null,
-    'ContractDeployed' : IDL.Null,
-  });
-  const CasperCollectionData = IDL.Record({
-    'contract_hash' : IDL.Opt(IDL.Text),
-    'holder_mode' : IDL.Opt(IDL.Nat8),
-    'events_mode' : IDL.Opt(IDL.Nat8),
-    'owner_reverse_lookup_mode' : IDL.Opt(IDL.Nat8),
-    'ownership_mode' : IDL.Nat8,
-    'burn_mode' : IDL.Opt(IDL.Nat8),
-    'metadata_mutability' : IDL.Nat8,
-    'json_schema' : IDL.Text,
-    'contract_package_hash' : IDL.Opt(IDL.Text),
-    'nft_kind' : IDL.Opt(IDL.Nat8),
-    'allow_minting' : IDL.Opt(IDL.Bool),
-    'whitelist_mode' : IDL.Opt(IDL.Nat8),
-    'minting_mode' : IDL.Opt(IDL.Nat8),
-    'deployment_stage' : CasperDeploymentStage,
-    'identifier_mode' : IDL.Nat8,
-    'total_token_supply' : IDL.Nat64,
-    'nft_metadata_kind' : IDL.Nat8,
-  });
   const ChainData = IDL.Variant({
     'ICP' : ICPCollectionData,
     'Ethereum' : EthereumCollectionData,
     'Solana' : SolanaCollectionData,
-    'Bitcoin' : BitcoinCollectionData,
     'Movement' : MovementCollectionData,
-    'Casper' : CasperCollectionData,
   });
   const CreateCollectionArgs = IDL.Record({
     'image_url' : IDL.Text,
@@ -148,30 +106,11 @@ export const idlFactory = ({ IDL }) => {
     'symbol' : IDL.Text,
     'royalty_bps' : IDL.Nat16,
   });
-  const UpdateCasperStageArgs = IDL.Record({
-    'contract_hash' : IDL.Opt(IDL.Text),
-    'holder_mode' : IDL.Opt(IDL.Nat8),
-    'events_mode' : IDL.Opt(IDL.Nat8),
-    'owner_reverse_lookup_mode' : IDL.Opt(IDL.Nat8),
-    'collection_id' : IDL.Text,
-    'ownership_mode' : IDL.Opt(IDL.Nat8),
-    'burn_mode' : IDL.Opt(IDL.Nat8),
-    'metadata_mutability' : IDL.Opt(IDL.Nat8),
-    'json_schema' : IDL.Opt(IDL.Text),
-    'contract_package_hash' : IDL.Opt(IDL.Text),
-    'nft_kind' : IDL.Opt(IDL.Nat8),
-    'allow_minting' : IDL.Opt(IDL.Bool),
-    'stage' : CasperDeploymentStage,
-    'whitelist_mode' : IDL.Opt(IDL.Nat8),
-    'minting_mode' : IDL.Opt(IDL.Nat8),
-    'identifier_mode' : IDL.Opt(IDL.Nat8),
-    'total_token_supply' : IDL.Opt(IDL.Nat64),
-    'nft_metadata_kind' : IDL.Opt(IDL.Nat8),
-  });
   const UpdateCollectionStatusArgs = IDL.Record({
     'status' : CollectionStatus,
     'collection_id' : IDL.Text,
   });
+  const Result_1 = IDL.Variant({ 'Ok' : IDL.Null, 'Err' : IDL.Text });
   const UpdateMovementStageArgs = IDL.Record({
     'collection_address' : IDL.Opt(IDL.Text),
     'manifest_url' : IDL.Opt(IDL.Text),
@@ -192,7 +131,6 @@ export const idlFactory = ({ IDL }) => {
   });
   return IDL.Service({
     'admin_remove_collection' : IDL.Func([IDL.Text], [Result], []),
-    'clear_old_collections' : IDL.Func([], [Result_1], []),
     'create_collection' : IDL.Func([CreateCollectionArgs], [Result], []),
     'get_all_collections' : IDL.Func(
         [IDL.Nat32, IDL.Nat32],
@@ -216,14 +154,11 @@ export const idlFactory = ({ IDL }) => {
         ['query'],
       ),
     'get_my_draft_collections' : IDL.Func([], [IDL.Vec(Collection)], ['query']),
-    'get_old_collections_count' : IDL.Func([], [IDL.Nat64], ['query']),
     'get_user_collections' : IDL.Func(
         [IDL.Nat32, IDL.Nat32],
         [IDL.Vec(Collection)],
         ['query'],
       ),
-    'migrate_collections' : IDL.Func([], [], []),
-    'update_casper_stage' : IDL.Func([UpdateCasperStageArgs], [Result_1], []),
     'update_collection_status' : IDL.Func(
         [UpdateCollectionStatusArgs],
         [Result_1],

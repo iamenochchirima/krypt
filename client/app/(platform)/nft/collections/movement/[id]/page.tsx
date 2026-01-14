@@ -25,10 +25,10 @@ import {
   MoreHorizontal,
   Loader2
 } from "lucide-react"
-import { getMarketplaceActor } from "@/providers/actors/marketplace"
+import { getRegistryActor } from "@/providers/actors/marketplace"
 import { getCollectionAddress } from "@/lib/movement/collection"
 import { getCollectionByAddress, getNFTsByCollection } from "@/lib/movement/graphql"
-import type { Collection as CanisterCollection } from "@/declarations/marketplace/marketplace.did"
+import type { Collection as CanisterCollection } from "@/declarations/registry/registry.did"
 import { toast } from "sonner"
 import { useWalletConnection } from "@/connect-wallet"
 import { useWallet } from "@aptos-labs/wallet-adapter-react"
@@ -114,7 +114,7 @@ export default function MovementCollectionPage() {
     try {
       setIsLoading(true)
 
-      const actor = await getMarketplaceActor(null)
+      const actor = await getRegistryActor(null)
       const result = await actor.get_collection(collectionId)
 
       if (!result || result.length === 0) {

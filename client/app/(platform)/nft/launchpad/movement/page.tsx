@@ -15,7 +15,7 @@ import { Upload, Eye, CheckCircle, Info, Rocket, Check, Clock } from "lucide-rea
 import { saveDraft, loadDraft } from "@/lib/storage/draftStorage"
 import { useDebounce } from "@/hooks/useDebounce"
 import { useAuth } from "@/providers/auth-context"
-import { getMarketplaceActor } from "@/providers/actors/marketplace"
+import { getRegistryActor } from "@/providers/actors/marketplace"
 import { uploadToStorage, StorageProvider } from "@/lib/storage"
 import { toast } from "sonner"
 import { useMovementWallet } from "@/connect-wallet/hooks/useMovementWallet"
@@ -143,7 +143,7 @@ export default function CreateMovementCollectionPage() {
         setIsUploading(true)
         setUploadProgress("Creating collection record...")
 
-        const actor = await getMarketplaceActor(identity)
+        const actor = await getRegistryActor(identity)
 
         const createResult = await actor.create_collection({
           blockchain: { Movement: null },
@@ -315,7 +315,7 @@ export default function CreateMovementCollectionPage() {
       // Update the canister record to mark as deployed
       if (formData.canisterRecordId) {
         try {
-          const actor = await getMarketplaceActor(identity)
+          const actor = await getRegistryActor(identity)
 
           // Get the collection address
           const collectionAddr = await getCollectionAddress(

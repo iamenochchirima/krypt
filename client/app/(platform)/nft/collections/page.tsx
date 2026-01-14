@@ -20,8 +20,8 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { getMarketplaceActor } from "@/providers/actors/marketplace"
-import type { Collection as CanisterCollection, Blockchain } from "@/declarations/marketplace/marketplace.did"
+import { getRegistryActor } from "@/providers/actors/marketplace"
+import type { Collection as CanisterCollection, Blockchain } from "@/declarations/registry/registry.did"
 
 const blockchainToChain = (blockchain: Blockchain): string => {
   if ('ICP' in blockchain) return 'icp'
@@ -78,7 +78,7 @@ export default function CollectionsPage() {
   const fetchCollections = async () => {
     try {
       setIsLoading(true)
-      const actor = await getMarketplaceActor(null)
+      const actor = await getRegistryActor(null)
       const result = await actor.get_all_collections(0, 100)
 
       const formatted = result.map((col: CanisterCollection) => {

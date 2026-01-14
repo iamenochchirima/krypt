@@ -11,6 +11,7 @@ mod ic_agent;
 mod middleware;
 mod db;
 mod storage;
+mod services;
 
 use config::AppConfig;
 use routes::configure_routes;
@@ -18,6 +19,7 @@ use redis::RedisClient;
 use ic_agent::BackendActor;
 use db::create_pool;
 use storage::R2Client;
+use services::HeliusClient;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
@@ -74,6 +76,11 @@ async fn main() -> std::io::Result<()> {
         )
     })?;
     println!("✅ R2 storage client initialized successfully!");
+
+    if let Err(e) = HeliusClient::initialize_global(&config).await {
+        eprintln!("⚠️ Failed to initialize Helius client: {}", e);
+        eprintln!("🔄 NFT endpoints will be unavailable...");
+    }
 
     println!("🚀 Server starting at http://0.0.0.0:{}", config.port);
     println!("🌍 Environment: {}", config.environment);
