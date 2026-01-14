@@ -1,0 +1,17 @@
+[package]
+name = "marketplace"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+candid.workspace = true
+ic-cdk.workspace = true
+ic-cdk-macros.workspace = true
+ic-stable-structures.workspace = true
+serde.workspace = true
+canister_uuid = { path = "../../uuid" }
+icrc-ledger-types = "0.1"
+num-traits = "0.2"

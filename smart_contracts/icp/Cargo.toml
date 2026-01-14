@@ -1,7 +1,9 @@
 [workspace]
 members = [
     "src/users",
-    "src/marketplace",
+    "src/nfts/registry",
+    "src/nfts/marketplace",
+    "src/x_chain",
     "src/uuid",
     "src/types",
     "src/treasury",

@@ -1,0 +1,151 @@
+type BuyNFTArgs = record { listing_id : text };
+type CollectionInfo = record {
+  id : principal;
+  floor_price : opt nat;
+  status : CollectionStatus;
+  creator : principal;
+  supply_cap : opt nat;
+  logo : opt text;
+  name : text;
+  description : opt text;
+  created_at : nat64;
+  total_volume : nat;
+  total_supply : nat;
+  symbol : text;
+};
+type CollectionStatus = variant { Paused; AssetsPending; Active; Banned };
+type CreateCollectionArgs = record {
+  supply_cap : opt nat;
+  logo : opt text;
+  description : opt text;
+  collection_name : text;
+  collection_symbol : text;
+  collection_metadata : vec record { text; text };
+};
+type CreateCollectionResponse = record {
+  transaction_id : nat64;
+  collection_canister_id : principal;
+};
+type InitArgs = record {
+  admin : principal;
+  collection_creation_fee : nat;
+  marketplace_fee_percentage : nat16;
+};
+type ListNFTArgs = record {
+  duration : opt nat64;
+  token_id : nat;
+  collection_id : principal;
+  price : nat;
+};
+type ListingInfo = record {
+  status : ListingStatus;
+  token_id : nat;
+  collection_id : principal;
+  created_at : nat64;
+  seller : principal;
+  listing_id : text;
+  price : nat;
+  expires_at : opt nat64;
+};
+type ListingStatus = variant { Sold; Active; Cancelled; Expired };
+type MarketplaceConfig = record {
+  admin : principal;
+  collection_creation_fee : nat;
+  marketplace_fee_percentage : nat16;
+  min_listing_price : nat;
+  supported_tokens : vec principal;
+  max_listing_duration : nat64;
+};
+type MarketplaceError = variant {
+  InvalidInput : text;
+  TokenNotFound;
+  EncodingError : text;
+  InvalidPrice;
+  ListingNotActive;
+  InvalidCollectionName;
+  PaymentFailed : text;
+  CollectionNotFound;
+  SystemError : text;
+  InvalidFeePercentage;
+  TokenNotOwned;
+  CanisterInstallationFailed : text;
+  InvalidDescription;
+  InsufficientApproval;
+  NotAuthorized;
+  CanisterCreationFailed : text;
+  CannotBuyOwnListing;
+  InvalidDuration;
+  ListingExpired;
+  TransferFailed : text;
+  CollectionNameAlreadyExists;
+  InvalidLogoUrl;
+  InvalidCollectionSymbol;
+  InsufficientFunds;
+  ListingNotFound;
+  ListingAlreadyCancelled;
+};
+type MarketplaceStats = record {
+  active_collections : nat64;
+  collection_creation_fee : nat;
+  total_collections : nat64;
+  marketplace_fee_percentage : nat16;
+  total_volume : nat;
+};
+type PaginatedCollections = record {
+  collections : vec CollectionInfo;
+  total_count : nat64;
+  has_more : bool;
+};
+type PaginatedListings = record {
+  listings : vec ListingInfo;
+  total_count : nat64;
+  has_more : bool;
+};
+type Result = variant { Ok; Err : MarketplaceError };
+type Result_1 = variant {
+  Ok : CreateCollectionResponse;
+  Err : MarketplaceError;
+};
+type Result_2 = variant { Ok : CollectionInfo; Err : MarketplaceError };
+type Result_3 = variant { Ok : ListingInfo; Err : MarketplaceError };
+type Result_4 = variant { Ok : text; Err : MarketplaceError };
+type SaleInfo = record {
+  transaction_hash : text;
+  token_id : nat;
+  collection_id : principal;
+  sale_time : nat64;
+  seller : principal;
+  buyer : principal;
+  listing_id : text;
+  price : nat;
+  marketplace_fee : nat;
+};
+service : (InitArgs) -> {
+  activate_collection : (principal) -> (Result);
+  buy_nft : (BuyNFTArgs) -> (Result);
+  cancel_listing : (text) -> (Result);
+  create_collection : (CreateCollectionArgs) -> (Result_1);
+  get_active_listings : (opt nat64, opt nat64) -> (PaginatedListings) query;
+  get_admin : () -> (principal) query;
+  get_all_collections : (opt nat64, opt nat64) -> (PaginatedCollections) query;
+  get_collection_by_name_query : (text) -> (Result_2) query;
+  get_collection_info : (principal) -> (Result_2) query;
+  get_collections_by_creator_query : (principal) -> (vec CollectionInfo) query;
+  get_listing : (text) -> (Result_3) query;
+  get_listings_by_collection : (principal, opt nat64, opt nat64) -> (
+      PaginatedListings,
+    ) query;
+  get_listings_by_seller : (principal, opt nat64, opt nat64) -> (
+      PaginatedListings,
+    ) query;
+  get_marketplace_config : () -> (MarketplaceConfig) query;
+  get_marketplace_stats : () -> (MarketplaceStats) query;
+  get_sales_history : (opt nat64, opt nat64) -> (vec SaleInfo) query;
+  get_user_collections : (principal) -> (vec CollectionInfo);
+  list_nft : (ListNFTArgs) -> (Result_4);
+  transfer_admin : (principal) -> (Result);
+  update_collection_creation_fee : (nat) -> (Result);
+  update_collection_status : (principal, CollectionStatus) -> (Result);
+  update_marketplace_config : (MarketplaceConfig) -> (Result);
+  update_marketplace_fee_percentage : (nat16) -> (Result);
+}

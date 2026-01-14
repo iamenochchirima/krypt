@@ -4,6 +4,7 @@
 **/node_modules
 
 /canisters/**/declarations/
+smart_contracts/icp/src/declarations/
 
 **/target
 

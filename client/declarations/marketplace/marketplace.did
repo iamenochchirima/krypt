@@ -1,310 +1,151 @@
-type AccountMeta = record {
-  is_signer : bool;
-  pubkey : text;
-  is_writable : bool;
-};
-type BitcoinCollectionData = record {
-  deployment_stage : BitcoinDeploymentStage;
-  inscription_ids : vec text;
-};
-type BitcoinDeploymentStage = variant { InscriptionsCreating; Deployed };
-type Blockchain = variant { ICP; Ethereum; Solana; Bitcoin; Movement; Casper };
-type CandyMachineConfig = record {
-  seller_fee_basis_points : nat16;
-  items_available : nat64;
-  go_live_date : opt nat64;
-  price : nat64;
-  symbol : text;
-};
-type CanisterSolanaInfo = record {
-  canister_id : text;
-  main_solana_address : text;
-};
-type CasperCollectionData = record {
-  contract_hash : opt text;
-  holder_mode : opt nat8;
-  events_mode : opt nat8;
-  owner_reverse_lookup_mode : opt nat8;
-  ownership_mode : nat8;
-  burn_mode : opt nat8;
-  metadata_mutability : nat8;
-  json_schema : text;
-  contract_package_hash : opt text;
-  nft_kind : opt nat8;
-  allow_minting : opt bool;
-  whitelist_mode : opt nat8;
-  minting_mode : opt nat8;
-  deployment_stage : CasperDeploymentStage;
-  identifier_mode : nat8;
-  total_token_supply : nat64;
-  nft_metadata_kind : nat8;
-};
-type CasperDeploymentStage = variant {
-  ContractDeploying;
-  Minting;
-  ContractPreparing;
-  Deployed;
-  ContractDeployed;
-};
-type ChainData = variant {
-  ICP : ICPCollectionData;
-  Ethereum : EthereumCollectionData;
-  Solana : SolanaCollectionData;
-  Bitcoin : BitcoinCollectionData;
-  Movement : MovementCollectionData;
-  Casper : CasperCollectionData;
-};
-type Collection = record {
-  id : text;
-  floor_price : nat64;
+type BuyNFTArgs = record { listing_id : text };
+type CollectionInfo = record {
+  id : principal;
+  floor_price : opt nat;
   status : CollectionStatus;
-  updated_at : nat64;
   creator : principal;
-  image_url : text;
-  metadata : vec record { text; text };
-  banner_url : opt text;
-  owner_count : nat32;
+  supply_cap : opt nat;
+  logo : opt text;
   name : text;
-  description : text;
+  description : opt text;
   created_at : nat64;
-  blockchain : Blockchain;
-  listed_count : nat32;
-  total_volume : nat64;
-  chain_data : ChainData;
-  total_supply : nat64;
+  total_volume : nat;
+  total_supply : nat;
   symbol : text;
-  royalty_bps : nat16;
 };
-type CollectionSolanaAccounts = record {
-  collection_id : text;
-  collection_mint : opt text;
-  candy_machine_address : text;
-  payer_address : text;
-};
-type CollectionStatus = variant { Minting; Paused; Active; Draft; Completed };
-type CommitmentLevel = variant { finalized; confirmed; processed };
+type CollectionStatus = variant { Paused; AssetsPending; Active; Banned };
 type CreateCollectionArgs = record {
-  image_url : text;
-  metadata : vec record { text; text };
-  banner_url : opt text;
-  name : text;
-  description : text;
-  blockchain : Blockchain;
-  chain_data : ChainData;
-  total_supply : nat64;
-  symbol : text;
-  royalty_bps : nat16;
+  supply_cap : opt nat;
+  logo : opt text;
+  description : opt text;
+  collection_name : text;
+  collection_symbol : text;
+  collection_metadata : vec record { text; text };
 };
-type CreateListingArgs = record {
-  nft_id : text;
-  nft_metadata : NftMetadata;
-  collection_id : text;
-  currency : text;
-  seller_address : text;
-  price : nat64;
-  expires_at : opt nat64;
-};
-type Ed25519KeyName = variant {
-  MainnetTestKey1;
-  LocalDevelopment;
-  MainnetProdKey1;
-};
-type EthereumCollectionData = record {
-  chain_id : nat64;
-  deployment_stage : EthereumDeploymentStage;
-  contract_address : opt text;
-};
-type EthereumDeploymentStage = variant { ContractDeploying; Deployed };
-type HttpHeader = record { value : text; name : text };
-type ICPCollectionData = record {
-  canister_id : opt principal;
-  deployment_stage : ICPDeploymentStage;
-};
-type ICPDeploymentStage = variant {
-  CanisterDeploying;
-  CanisterCreating;
-  Deployed;
+type CreateCollectionResponse = record {
+  transaction_id : nat64;
+  collection_canister_id : principal;
 };
 type InitArgs = record {
   admin : principal;
-  solana_commitment_level : opt CommitmentLevel;
-  ed25519_key_name : opt Ed25519KeyName;
-  solana_network : opt SolanaNetwork;
-  sol_rpc_canister_id : opt principal;
+  collection_creation_fee : nat;
+  marketplace_fee_percentage : nat16;
 };
-type InstructionData = record {
-  data : blob;
-  program_id : text;
-  accounts : vec AccountMeta;
+type ListNFTArgs = record {
+  duration : opt nat64;
+  token_id : nat;
+  collection_id : principal;
+  price : nat;
 };
-type Listing = record {
-  id : text;
-  nft_id : text;
+type ListingInfo = record {
   status : ListingStatus;
-  updated_at : nat64;
-  escrow_address : opt text;
-  nft_metadata : NftMetadata;
-  collection_id : text;
+  token_id : nat;
+  collection_id : principal;
+  created_at : nat64;
   seller : principal;
-  blockchain : Blockchain;
-  currency : text;
-  seller_address : text;
-  price : nat64;
+  listing_id : text;
+  price : nat;
   expires_at : opt nat64;
-  listed_at : nat64;
 };
 type ListingStatus = variant { Sold; Active; Cancelled; Expired };
-type MovementCollectionData = record {
-  collection_address : opt text;
-  manifest_url : opt text;
-  collection_created : bool;
-  deployment_stage : MovementDeploymentStage;
+type MarketplaceConfig = record {
+  admin : principal;
+  collection_creation_fee : nat;
+  marketplace_fee_percentage : nat16;
+  min_listing_price : nat;
+  supported_tokens : vec principal;
+  max_listing_duration : nat64;
 };
-type MovementDeploymentStage = variant {
-  FilesUploaded;
-  Deployed;
-  FilesUploading;
-  CollectionDeploying;
+type MarketplaceError = variant {
+  InvalidInput : text;
+  TokenNotFound;
+  EncodingError : text;
+  InvalidPrice;
+  ListingNotActive;
+  InvalidCollectionName;
+  PaymentFailed : text;
+  CollectionNotFound;
+  SystemError : text;
+  InvalidFeePercentage;
+  TokenNotOwned;
+  CanisterInstallationFailed : text;
+  InvalidDescription;
+  InsufficientApproval;
+  NotAuthorized;
+  CanisterCreationFailed : text;
+  CannotBuyOwnListing;
+  InvalidDuration;
+  ListingExpired;
+  TransferFailed : text;
+  CollectionNameAlreadyExists;
+  InvalidLogoUrl;
+  InvalidCollectionSymbol;
+  InsufficientFunds;
+  ListingNotFound;
+  ListingAlreadyCancelled;
 };
-type NftAttribute = record { trait_type : text; value : text };
-type NftMetadata = record {
-  image_url : text;
-  name : text;
-  attributes : vec NftAttribute;
+type MarketplaceStats = record {
+  active_collections : nat64;
+  collection_creation_fee : nat;
+  total_collections : nat64;
+  marketplace_fee_percentage : nat16;
+  total_volume : nat;
 };
-type Result = variant { Ok : text; Err : text };
-type Result_1 = variant { Ok; Err : text };
-type Result_2 = variant { Ok : CanisterSolanaInfo; Err : text };
-type Result_3 = variant { Ok : CollectionSolanaAccounts; Err : text };
-type RpcEndpoint = record { url : text; headers : opt vec HttpHeader };
-type SolanaCollectionData = record {
-  files_uploaded : bool;
-  metadata_created : bool;
-  manifest_url : opt text;
-  candy_machine_config : opt CandyMachineConfig;
-  collection_mint : opt text;
-  candy_machine_address : opt text;
-  deployment_stage : SolanaDeploymentStage;
-  candy_machine_items_uploaded : bool;
-  candy_machine_authority : opt text;
+type PaginatedCollections = record {
+  collections : vec CollectionInfo;
+  total_count : nat64;
+  has_more : bool;
 };
-type SolanaDeploymentStage = variant {
-  CandyMachineDeploying;
-  MetadataCreated;
-  FilesUploaded;
-  Deployed;
-  FilesUploading;
-  MetadataCreating;
+type PaginatedListings = record {
+  listings : vec ListingInfo;
+  total_count : nat64;
+  has_more : bool;
 };
-type SolanaNetwork = variant { Mainnet; Custom : RpcEndpoint; Devnet };
-type TokenAmount = record {
-  decimals : nat8;
-  uiAmount : opt float64;
-  uiAmountString : text;
-  amount : text;
+type Result = variant { Ok; Err : MarketplaceError };
+type Result_1 = variant {
+  Ok : CreateCollectionResponse;
+  Err : MarketplaceError;
 };
-type TransactionType = variant {
-  UpdateCandyMachine;
-  TransferAuthority;
-  CreateCandyMachine;
-};
-type UpdateCasperStageArgs = record {
-  contract_hash : opt text;
-  holder_mode : opt nat8;
-  events_mode : opt nat8;
-  owner_reverse_lookup_mode : opt nat8;
-  collection_id : text;
-  ownership_mode : opt nat8;
-  burn_mode : opt nat8;
-  metadata_mutability : opt nat8;
-  json_schema : opt text;
-  contract_package_hash : opt text;
-  nft_kind : opt nat8;
-  allow_minting : opt bool;
-  stage : CasperDeploymentStage;
-  whitelist_mode : opt nat8;
-  minting_mode : opt nat8;
-  identifier_mode : opt nat8;
-  total_token_supply : opt nat64;
-  nft_metadata_kind : opt nat8;
-};
-type UpdateCollectionStatusArgs = record {
-  status : CollectionStatus;
-  collection_id : text;
-};
-type UpdateListingArgs = record {
-  status : opt ListingStatus;
+type Result_2 = variant { Ok : CollectionInfo; Err : MarketplaceError };
+type Result_3 = variant { Ok : ListingInfo; Err : MarketplaceError };
+type Result_4 = variant { Ok : text; Err : MarketplaceError };
+type SaleInfo = record {
+  transaction_hash : text;
+  token_id : nat;
+  collection_id : principal;
+  sale_time : nat64;
+  seller : principal;
+  buyer : principal;
   listing_id : text;
-  price : opt nat64;
-};
-type UpdateMovementStageArgs = record {
-  collection_address : opt text;
-  manifest_url : opt text;
-  collection_id : text;
-  collection_created : opt bool;
-  stage : MovementDeploymentStage;
-};
-type UpdateSolanaStageArgs = record {
-  files_uploaded : opt bool;
-  metadata_created : opt bool;
-  manifest_url : opt text;
-  collection_id : text;
-  candy_machine_config : opt CandyMachineConfig;
-  collection_mint : opt text;
-  stage : SolanaDeploymentStage;
-  candy_machine_address : opt text;
-  candy_machine_authority : opt text;
+  price : nat;
+  marketplace_fee : nat;
 };
 service : (InitArgs) -> {
-  add_items_to_candy_machine : (text, InstructionData) -> (Result);
-  admin_remove_collection : (text) -> (Result);
-  associated_token_account : (opt principal, text) -> (text);
-  cancel_listing : (text, text) -> (Result_1);
-  clear_old_collections : () -> (Result_1);
-  create_associated_token_account : (opt principal, text) -> (text);
-  create_candy_machine_from_instruction : (text, vec InstructionData) -> (
-      Result,
-    );
-  create_collection : (CreateCollectionArgs) -> (Result);
-  create_listing : (CreateListingArgs, Blockchain) -> (Result);
-  create_nonce_account : (opt principal) -> (text);
-  get_all_collections : (nat32, nat32) -> (vec Collection) query;
-  get_all_draft_collections : (nat32, nat32) -> (vec Collection) query;
-  get_balance : (opt text) -> (nat);
-  get_canister_solana_info : () -> (Result_2) query;
-  get_collection : (text) -> (opt Collection) query;
-  get_collection_listing_count : (text) -> (nat32) query;
-  get_collection_listings : (text, nat32, nat32, opt ListingStatus) -> (
-      vec Listing,
+  activate_collection : (principal) -> (Result);
+  buy_nft : (BuyNFTArgs) -> (Result);
+  cancel_listing : (text) -> (Result);
+  create_collection : (CreateCollectionArgs) -> (Result_1);
+  get_active_listings : (opt nat64, opt nat64) -> (PaginatedListings) query;
+  get_admin : () -> (principal) query;
+  get_all_collections : (opt nat64, opt nat64) -> (PaginatedCollections) query;
+  get_collection_by_name_query : (text) -> (Result_2) query;
+  get_collection_info : (principal) -> (Result_2) query;
+  get_collections_by_creator_query : (principal) -> (vec CollectionInfo) query;
+  get_listing : (text) -> (Result_3) query;
+  get_listings_by_collection : (principal, opt nat64, opt nat64) -> (
+      PaginatedListings,
     ) query;
-  get_collection_solana_accounts : (text) -> (Result_3) query;
-  get_collections_by_blockchain : (Blockchain, nat32, nat32) -> (
-      vec Collection,
+  get_listings_by_seller : (principal, opt nat64, opt nat64) -> (
+      PaginatedListings,
     ) query;
-  get_creator_draft_collections : (principal) -> (vec Collection) query;
-  get_listing : (text, text) -> (opt Listing) query;
-  get_my_draft_collections : () -> (vec Collection) query;
-  get_nonce : (opt text) -> (text);
-  get_old_collections_count : () -> (nat64) query;
-  get_spl_token_balance : (opt text, text) -> (TokenAmount);
-  get_user_collections : (nat32, nat32) -> (vec Collection) query;
-  get_user_listings : (nat32, nat32) -> (vec Listing) query;
-  migrate_collections : () -> ();
-  nonce_account : (opt principal) -> (text);
-  send_sol : (opt principal, text, nat) -> (text);
-  send_sol_with_durable_nonce : (opt principal, text, nat) -> (text);
-  send_spl_token : (opt principal, text, text, nat) -> (text);
-  sign_and_send_solana_transaction : (
-      text,
-      blob,
-      TransactionType,
-      opt text,
-    ) -> (Result);
-  solana_account : (opt principal) -> (text);
-  update_candy_machine_address : (text, text) -> (Result_1);
-  update_casper_stage : (UpdateCasperStageArgs) -> (Result_1);
-  update_collection_status : (UpdateCollectionStatusArgs) -> (Result_1);
-  update_listing : (UpdateListingArgs, text) -> (Result_1);
-  update_movement_stage : (UpdateMovementStageArgs) -> (Result_1);
-  update_solana_stage : (UpdateSolanaStageArgs) -> (Result_1);
+  get_marketplace_config : () -> (MarketplaceConfig) query;
+  get_marketplace_stats : () -> (MarketplaceStats) query;
+  get_sales_history : (opt nat64, opt nat64) -> (vec SaleInfo) query;
+  get_user_collections : (principal) -> (vec CollectionInfo);
+  list_nft : (ListNFTArgs) -> (Result_4);
+  transfer_admin : (principal) -> (Result);
+  update_collection_creation_fee : (nat) -> (Result);
+  update_collection_status : (principal, CollectionStatus) -> (Result);
+  update_marketplace_config : (MarketplaceConfig) -> (Result);
+  update_marketplace_fee_percentage : (nat16) -> (Result);
 }

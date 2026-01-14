@@ -2,8 +2,7 @@
 
 function generate_did() {
   local canister=$1
-
-  canister_root="src/$canister"
+  local canister_root=$2
 
   cargo build --manifest-path="$canister_root/Cargo.toml" \
     --target wasm32-unknown-unknown \
@@ -12,8 +11,13 @@ function generate_did() {
   candid-extractor "target/wasm32-unknown-unknown/release/$canister.wasm" >"$canister_root/$canister.did"
 }
 
-CANISTERS=users,treasury,marketplace
+# Users and Treasury
+generate_did "users" "src/users"
+generate_did "treasury" "src/treasury"
 
-for canister in $(echo $CANISTERS | sed "s/,/ /g"); do
-  generate_did "$canister"
-done
+# NFT canisters
+generate_did "registry" "src/nfts/registry"
+generate_did "marketplace" "src/nfts/marketplace"
+
+# X-Chain canister
+generate_did "x_chain" "src/x_chain"

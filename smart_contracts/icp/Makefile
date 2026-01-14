@@ -8,9 +8,13 @@ deploy-backend:
 	dfx deploy users
 	dfx deploy identity_certifier --argument '(principal "o4jpg-z2hcz-bf2oe-zziee-bsw4t-jgecg-boagp-segn6-pdznr-u6bdc-zae")'
 	dfx deploy treasury
-	dfx deploy marketplace --yes --argument '(record { admin = principal "o4jpg-z2hcz-bf2oe-zziee-bsw4t-jgecg-boagp-segn6-pdznr-u6bdc-zae" })'
+	dfx deploy registry --yes --argument '(record { admin = principal "o4jpg-z2hcz-bf2oe-zziee-bsw4t-jgecg-boagp-segn6-pdznr-u6bdc-zae" })'
+	dfx deploy x_chain --yes --argument '(record { admin = principal "o4jpg-z2hcz-bf2oe-zziee-bsw4t-jgecg-boagp-segn6-pdznr-u6bdc-zae" })'
+	dfx deploy marketplace --yes --argument '(record { admin = principal "o4jpg-z2hcz-bf2oe-zziee-bsw4t-jgecg-boagp-segn6-pdznr-u6bdc-zae"; collection_creation_fee = 100_000_000 : nat; marketplace_fee_percentage = 250 : nat16 })'
 	dfx generate users
 	dfx generate treasury
+	dfx generate registry
+	dfx generate x_chain
 	dfx generate marketplace
 
 generate:
@@ -18,14 +22,32 @@ generate:
 	mkdir -p ../../client/declarations
 	rsync -av --delete src/declarations/ ../../client/declarations/
 
+deploy-registry:
+	dfx deploy registry --yes --argument '(record { admin = principal "o4jpg-z2hcz-bf2oe-zziee-bsw4t-jgecg-boagp-segn6-pdznr-u6bdc-zae" })'
+	dfx generate registry
+	mkdir -p ../../client/declarations
+	rsync -av src/declarations/registry/ ../../client/declarations/registry/
+
+deploy-registry-live:
+	dfx deploy registry --yes --argument '(record { admin = principal "o4jpg-z2hcz-bf2oe-zziee-bsw4t-jgecg-boagp-segn6-pdznr-u6bdc-zae" })' --network ic
+
+deploy-x_chain:
+	dfx deploy x_chain --yes --argument '(record { admin = principal "o4jpg-z2hcz-bf2oe-zziee-bsw4t-jgecg-boagp-segn6-pdznr-u6bdc-zae" })'
+	dfx generate x_chain
+	mkdir -p ../../client/declarations
+	rsync -av src/declarations/x_chain/ ../../client/declarations/x_chain/
+
+deploy-x_chain-live:
+	dfx deploy x_chain --yes --argument '(record { admin = principal "o4jpg-z2hcz-bf2oe-zziee-bsw4t-jgecg-boagp-segn6-pdznr-u6bdc-zae"; ed25519_key_name = opt variant { MainnetTestKey1 } })' --network ic
+
 deploy-marketplace:
-	dfx deploy marketplace --yes --argument '(record { admin = principal "o4jpg-z2hcz-bf2oe-zziee-bsw4t-jgecg-boagp-segn6-pdznr-u6bdc-zae" })'
+	dfx deploy marketplace --yes --argument '(record { admin = principal "o4jpg-z2hcz-bf2oe-zziee-bsw4t-jgecg-boagp-segn6-pdznr-u6bdc-zae"; collection_creation_fee = 100_000_000 : nat; marketplace_fee_percentage = 250 : nat16 })'
 	dfx generate marketplace
 	mkdir -p ../../client/declarations
 	rsync -av src/declarations/marketplace/ ../../client/declarations/marketplace/
 
 deploy-marketplace-live:
-	dfx deploy marketplace --yes --argument '(record { admin = principal "o4jpg-z2hcz-bf2oe-zziee-bsw4t-jgecg-boagp-segn6-pdznr-u6bdc-zae" })' --network ic
+	dfx deploy marketplace --yes --argument '(record { admin = principal "o4jpg-z2hcz-bf2oe-zziee-bsw4t-jgecg-boagp-segn6-pdznr-u6bdc-zae"; collection_creation_fee = 100_000_000 : nat; marketplace_fee_percentage = 250 : nat16 })' --network ic
 
 deploy-users:
 	dfx deploy users
@@ -59,19 +81,45 @@ clean:
 	rm -f .env
 	cargo clean
 
-
 deploy-all-live: deploy-backend
 
+reinstall-registry:
+	dfx canister install registry --mode reinstall --yes --argument '(record { admin = principal "o4jpg-z2hcz-bf2oe-zziee-bsw4t-jgecg-boagp-segn6-pdznr-u6bdc-zae" })'
+	dfx generate registry
+	mkdir -p ../../client/declarations
+	rsync -av src/declarations/registry/ ../../client/declarations/registry/
+
+reinstall-registry-live:
+	dfx canister install registry --mode reinstall --yes --network ic --argument '(record { admin = principal "o4jpg-z2hcz-bf2oe-zziee-bsw4t-jgecg-boagp-segn6-pdznr-u6bdc-zae" })'
+
+reinstall-x_chain:
+	dfx canister install x_chain --mode reinstall --yes --argument '(record { admin = principal "o4jpg-z2hcz-bf2oe-zziee-bsw4t-jgecg-boagp-segn6-pdznr-u6bdc-zae" })'
+	dfx generate x_chain
+	mkdir -p ../../client/declarations
+	rsync -av src/declarations/x_chain/ ../../client/declarations/x_chain/
+
+reinstall-x_chain-live:
+	dfx canister install x_chain --mode reinstall --yes --network ic --argument '(record { admin = principal "o4jpg-z2hcz-bf2oe-zziee-bsw4t-jgecg-boagp-segn6-pdznr-u6bdc-zae"; ed25519_key_name = opt variant { MainnetTestKey1 } })'
 
 reinstall-marketplace:
-	dfx canister install marketplace --mode reinstall --yes --argument '(record { admin = principal "o4jpg-z2hcz-bf2oe-zziee-bsw4t-jgecg-boagp-segn6-pdznr-u6bdc-zae" })'
+	dfx canister install marketplace --mode reinstall --yes --argument '(record { admin = principal "o4jpg-z2hcz-bf2oe-zziee-bsw4t-jgecg-boagp-segn6-pdznr-u6bdc-zae"; collection_creation_fee = 100_000_000 : nat; marketplace_fee_percentage = 250 : nat16 })'
 	dfx generate marketplace
 	mkdir -p ../../client/declarations
 	rsync -av src/declarations/marketplace/ ../../client/declarations/marketplace/
 
 reinstall-marketplace-live:
-	dfx canister install marketplace --mode reinstall --yes --network ic --argument '(record { admin = principal "o4jpg-z2hcz-bf2oe-zziee-bsw4t-jgecg-boagp-segn6-pdznr-u6bdc-zae"; ed25519_key_name = opt variant { MainnetTestKey1 } })'
+	dfx canister install marketplace --mode reinstall --yes --network ic --argument '(record { admin = principal "o4jpg-z2hcz-bf2oe-zziee-bsw4t-jgecg-boagp-segn6-pdznr-u6bdc-zae"; collection_creation_fee = 100_000_000 : nat; marketplace_fee_percentage = 250 : nat16 })'
 
 build:
+	cargo build --target wasm32-unknown-unknown --release --package registry
+	cargo build --target wasm32-unknown-unknown --release --package x_chain
 	cargo build --target wasm32-unknown-unknown --release --package marketplace
 
+build-registry:
+	cargo build --target wasm32-unknown-unknown --release --package registry
+
+build-x_chain:
+	cargo build --target wasm32-unknown-unknown --release --package x_chain
+
+build-marketplace:
+	cargo build --target wasm32-unknown-unknown --release --package marketplace

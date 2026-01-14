@@ -14,9 +14,19 @@
       "package": "treasury",
       "type": "rust"
     },
+    "registry": {
+      "candid": "src/nfts/registry/registry.did",
+      "package": "registry",
+      "type": "rust"
+    },
     "marketplace": {
-      "candid": "src/marketplace/marketplace.did",
+      "candid": "src/nfts/marketplace/marketplace.did",
       "package": "marketplace",
+      "type": "rust"
+    },
+    "x_chain": {
+      "candid": "src/x_chain/x_chain.did",
+      "package": "x_chain",
       "type": "rust"
     },
     "internet_identity": {
