@@ -42,3 +42,18 @@ pub fn get_my_draft_collections() -> Vec<Collection> {
     let caller = msg_caller();
     state::get_draft_collections(&caller)
 }
+
+#[query]
+pub fn get_upcoming_sales(page: u32, limit: u32) -> Vec<Collection> {
+    state::get_upcoming_sales(page, limit)
+}
+
+#[query]
+pub fn get_live_sales(page: u32, limit: u32) -> Vec<Collection> {
+    state::get_live_sales(page, limit)
+}
+
+#[query]
+pub fn get_ended_sales(page: u32, limit: u32) -> Vec<Collection> {
+    state::get_ended_sales(page, limit)
+}

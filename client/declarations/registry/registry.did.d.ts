@@ -23,6 +23,7 @@ export interface Collection {
   'status' : CollectionStatus,
   'updated_at' : bigint,
   'creator' : Principal,
+  'initial_sale' : [] | [InitialSale],
   'image_url' : string,
   'metadata' : Array<[string, string]>,
   'banner_url' : [] | [string],
@@ -69,7 +70,21 @@ export interface ICPCollectionData {
 export type ICPDeploymentStage = { 'CanisterDeploying' : null } |
   { 'CanisterCreating' : null } |
   { 'Deployed' : null };
+export interface ICPSaleConfig { 'sale_type' : ICPSaleType }
+export type ICPSaleType = { 'OpenEdition' : null } |
+  { 'FixedPrice' : null };
 export interface InitArgs { 'admin' : Principal }
+export interface InitialSale {
+  'end_time' : [] | [bigint],
+  'ended' : boolean,
+  'start_time' : bigint,
+  'config' : InitialSaleConfig,
+  'public_start_time' : [] | [bigint],
+}
+export type InitialSaleConfig = { 'ICP' : ICPSaleConfig } |
+  { 'Ethereum' : SolanaSaleConfig } |
+  { 'Solana' : SolanaSaleConfig } |
+  { 'Movement' : ICPSaleConfig };
 export interface MovementCollectionData {
   'collection_address' : [] | [string],
   'manifest_url' : [] | [string],
@@ -83,6 +98,10 @@ export type Result = { 'Ok' : string } |
   { 'Err' : string };
 export type Result_1 = { 'Ok' : null } |
   { 'Err' : string };
+export interface SetSaleEndedArgs {
+  'collection_id' : string,
+  'ended' : boolean,
+}
 export interface SolanaCollectionData {
   'files_uploaded' : boolean,
   'metadata_created' : boolean,
@@ -98,8 +117,16 @@ export type SolanaDeploymentStage = { 'CandyMachineDeploying' : null } |
   { 'Deployed' : null } |
   { 'FilesUploading' : null } |
   { 'MetadataCreating' : null };
+export interface SolanaSaleConfig { 'sale_type' : SolanaSaleType }
+export type SolanaSaleType = { 'OpenEdition' : null } |
+  { 'FixedPrice' : null } |
+  { 'DutchAuction' : null };
 export interface UpdateCollectionStatusArgs {
   'status' : CollectionStatus,
+  'collection_id' : string,
+}
+export interface UpdateInitialSaleArgs {
+  'initial_sale' : [] | [InitialSale],
   'collection_id' : string,
 }
 export interface UpdateMovementStageArgs {
@@ -134,12 +161,17 @@ export interface _SERVICE {
     Array<Collection>
   >,
   'get_creator_draft_collections' : ActorMethod<[Principal], Array<Collection>>,
+  'get_ended_sales' : ActorMethod<[number, number], Array<Collection>>,
+  'get_live_sales' : ActorMethod<[number, number], Array<Collection>>,
   'get_my_draft_collections' : ActorMethod<[], Array<Collection>>,
+  'get_upcoming_sales' : ActorMethod<[number, number], Array<Collection>>,
   'get_user_collections' : ActorMethod<[number, number], Array<Collection>>,
+  'set_sale_ended' : ActorMethod<[SetSaleEndedArgs], Result_1>,
   'update_collection_status' : ActorMethod<
     [UpdateCollectionStatusArgs],
     Result_1
   >,
+  'update_initial_sale' : ActorMethod<[UpdateInitialSaleArgs], Result_1>,
   'update_movement_stage' : ActorMethod<[UpdateMovementStageArgs], Result_1>,
   'update_solana_stage' : ActorMethod<[UpdateSolanaStageArgs], Result_1>,
 }

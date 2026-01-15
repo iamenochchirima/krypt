@@ -2,6 +2,7 @@ use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tokio::sync::OnceCell;
+use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 
 use crate::config::AppConfig;
 use crate::redis::RedisClient;
@@ -9,6 +10,10 @@ use crate::redis::RedisClient;
 static HELIUS_CLIENT: OnceCell<Arc<HeliusClient>> = OnceCell::const_new();
 
 const CACHE_TTL_SECONDS: u64 = 300;
+const LISTING_CACHE_TTL_SECONDS: u64 = 30;
+
+const AUCTION_HOUSE_PROGRAM_ID: &str = "hausS13jsjafwWwGqZTUQRmWyvyxn9EQpqMwV1PBBmk";
+const LISTING_RECEIPT_DISCRIMINATOR: [u8; 8] = [240, 71, 225, 94, 22, 33, 230, 53];
 
 #[derive(Debug, thiserror::Error)]
 pub enum HeliusError {
@@ -287,4 +292,175 @@ impl HeliusClient {
         self.set_cached(&cache_key, &result).await;
         Ok(result)
     }
+
+    pub async fn get_auction_house_listings(
+        &self,
+        auction_house: &str,
+        skip_cache: bool,
+    ) -> Result<Vec<ListingReceipt>, HeliusError> {
+        let cache_key = Self::cache_key("ah_listings", auction_house);
+
+        if !skip_cache {
+            if let Some(cached) = self.get_cached::<Vec<ListingReceipt>>(&cache_key).await {
+                return Ok(cached);
+            }
+        }
+
+        let discriminator_b64 = BASE64.encode(LISTING_RECEIPT_DISCRIMINATOR);
+        let auction_house_bytes = bs58::decode(auction_house)
+            .into_vec()
+            .map_err(|_| HeliusError::Rpc {
+                code: -1,
+                message: "Invalid auction house address".to_string(),
+            })?;
+        let auction_house_b64 = BASE64.encode(&auction_house_bytes);
+
+        let params = serde_json::json!([
+            AUCTION_HOUSE_PROGRAM_ID,
+            {
+                "encoding": "base64",
+                "filters": [
+                    { "memcmp": { "offset": 0, "bytes": discriminator_b64, "encoding": "base64" } },
+                    { "memcmp": { "offset": 72, "bytes": auction_house_b64, "encoding": "base64" } }
+                ]
+            }
+        ]);
+
+        let response: Vec<ProgramAccount> = self.rpc_call("getProgramAccounts", params).await?;
+
+        let listings: Vec<ListingReceipt> = response
+            .into_iter()
+            .filter_map(|account| {
+                let data = BASE64.decode(&account.account.data[0]).ok()?;
+                parse_listing_receipt(&data, &account.pubkey)
+            })
+            .filter(|listing| !listing.canceled_at.is_some())
+            .collect();
+
+        let redis = RedisClient::instance().await;
+        if let Ok(json) = serde_json::to_string(&listings) {
+            let _ = redis.set_ex(&cache_key, &json, LISTING_CACHE_TTL_SECONDS).await;
+        }
+
+        Ok(listings)
+    }
+
+    pub async fn get_listings_for_collection(
+        &self,
+        auction_house: &str,
+        collection_mint: &str,
+        skip_cache: bool,
+    ) -> Result<Vec<ListingReceipt>, HeliusError> {
+        let all_listings = self.get_auction_house_listings(auction_house, skip_cache).await?;
+
+        let collection_assets = self.get_assets_by_collection(collection_mint, 1, 1000, false).await?;
+        let collection_mints: std::collections::HashSet<String> = collection_assets
+            .items
+            .iter()
+            .map(|a| a.id.clone())
+            .collect();
+
+        let filtered: Vec<ListingReceipt> = all_listings
+            .into_iter()
+            .filter(|listing| collection_mints.contains(&listing.metadata))
+            .collect();
+
+        Ok(filtered)
+    }
+
+    pub async fn proxy_rpc(&self, body: serde_json::Value) -> Result<serde_json::Value, HeliusError> {
+        let response = self
+            .http
+            .post(&self.rpc_url)
+            .json(&body)
+            .send()
+            .await?
+            .json::<serde_json::Value>()
+            .await?;
+        Ok(response)
+    }
+
+    pub fn get_rpc_url(&self) -> &str {
+        &self.rpc_url
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ListingReceipt {
+    pub address: String,
+    pub trade_state: String,
+    pub bookkeeper: String,
+    pub auction_house: String,
+    pub seller: String,
+    pub metadata: String,
+    pub purchase_receipt: Option<String>,
+    pub price: u64,
+    pub token_size: u64,
+    pub created_at: i64,
+    pub canceled_at: Option<i64>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ProgramAccount {
+    pubkey: String,
+    account: AccountData,
+}
+
+#[derive(Debug, Deserialize)]
+struct AccountData {
+    data: Vec<String>,
+}
+
+fn parse_listing_receipt(data: &[u8], address: &str) -> Option<ListingReceipt> {
+    if data.len() < 161 {
+        return None;
+    }
+
+    let trade_state = bs58::encode(&data[8..40]).into_string();
+    let bookkeeper = bs58::encode(&data[40..72]).into_string();
+    let auction_house = bs58::encode(&data[72..104]).into_string();
+    let seller = bs58::encode(&data[104..136]).into_string();
+    let metadata = bs58::encode(&data[136..168]).into_string();
+
+    let purchase_receipt = if data[168] == 1 && data.len() >= 201 {
+        Some(bs58::encode(&data[169..201]).into_string())
+    } else {
+        None
+    };
+
+    let price_offset = if data[168] == 1 { 201 } else { 169 };
+    if data.len() < price_offset + 16 {
+        return None;
+    }
+
+    let price = u64::from_le_bytes(data[price_offset..price_offset + 8].try_into().ok()?);
+    let token_size = u64::from_le_bytes(data[price_offset + 8..price_offset + 16].try_into().ok()?);
+
+    let timestamp_offset = price_offset + 16;
+    let created_at = if data.len() >= timestamp_offset + 8 {
+        i64::from_le_bytes(data[timestamp_offset..timestamp_offset + 8].try_into().ok()?)
+    } else {
+        0
+    };
+
+    let canceled_offset = timestamp_offset + 8;
+    let canceled_at = if data.len() >= canceled_offset + 9 && data[canceled_offset] == 1 {
+        Some(i64::from_le_bytes(data[canceled_offset + 1..canceled_offset + 9].try_into().ok()?))
+    } else {
+        None
+    };
+
+    Some(ListingReceipt {
+        address: address.to_string(),
+        trade_state,
+        bookkeeper,
+        auction_house,
+        seller,
+        metadata,
+        purchase_receipt,
+        price,
+        token_size,
+        created_at,
+        canceled_at,
+    })
 }

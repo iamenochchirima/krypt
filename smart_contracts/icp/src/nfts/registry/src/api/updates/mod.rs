@@ -56,3 +56,29 @@ pub fn admin_remove_collection(collection_id: String) -> Result<String, String> 
     let removed = state::remove_collection(&collection_id)?;
     Ok(removed.id)
 }
+
+#[update]
+pub fn update_initial_sale(args: UpdateInitialSaleArgs) -> Result<(), String> {
+    let caller = msg_caller();
+    if let Some(collection) = state::get_collection(&args.collection_id) {
+        if collection.creator != caller {
+            return Err("Not authorized".to_string());
+        }
+        state::update_initial_sale(args)
+    } else {
+        Err("Collection not found".to_string())
+    }
+}
+
+#[update]
+pub fn set_sale_ended(args: SetSaleEndedArgs) -> Result<(), String> {
+    let caller = msg_caller();
+    if let Some(collection) = state::get_collection(&args.collection_id) {
+        if collection.creator != caller {
+            return Err("Not authorized".to_string());
+        }
+        state::set_sale_ended(args)
+    } else {
+        Err("Collection not found".to_string())
+    }
+}

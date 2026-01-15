@@ -5,6 +5,8 @@ edition = "2021"
 
 [dependencies]
 base64ct = "=1.6.0"
+base64 = "0.22"
+bs58 = "0.5"
 actix-web = "4.4" 
 actix-web-httpauth = "0.8" 
 actix-cors = "0.7" 

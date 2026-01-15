@@ -6,7 +6,7 @@ use crate::controllers::{
     users::{test_connection},
     drafts::{create_draft, get_draft, get_user_drafts, update_draft, delete_draft},
     uploads::{upload_draft_image, batch_upload_nft_assets},
-    nfts::{get_collection_nfts, get_asset, get_assets_by_owner},
+    nfts::{get_collection_nfts, get_asset, get_assets_by_owner, get_listings, get_collection_listings, solana_rpc_proxy},
 };
 
 pub fn configure_routes(cfg: &mut ServiceConfig) {
@@ -59,5 +59,12 @@ pub fn configure_routes(cfg: &mut ServiceConfig) {
                 .route("/collection/{mint}", web::get().to(get_collection_nfts))
                 .route("/asset/{id}", web::get().to(get_asset))
                 .route("/owner/{address}", web::get().to(get_assets_by_owner))
+                .route("/listings", web::get().to(get_listings))
+                .route("/listings/collection/{mint}", web::get().to(get_collection_listings))
+        )
+
+        .service(
+            web::resource("/api/solana/rpc")
+                .route(web::post().to(solana_rpc_proxy))
         );
 }

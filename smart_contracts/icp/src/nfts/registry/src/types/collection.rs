@@ -94,6 +94,69 @@ pub enum MovementDeploymentStage {
 }
 
 #[derive(CandidType, Serialize, Deserialize, Clone, Debug)]
+pub struct InitialSale {
+    pub start_time: u64,
+    pub end_time: Option<u64>,
+    pub public_start_time: Option<u64>,
+    pub ended: bool,
+    pub config: InitialSaleConfig,
+}
+
+#[derive(CandidType, Serialize, Deserialize, Clone, Debug)]
+pub enum InitialSaleConfig {
+    Solana(SolanaSaleConfig),
+    ICP(ICPSaleConfig),
+    Ethereum(EthereumSaleConfig),
+    Movement(MovementSaleConfig),
+}
+
+#[derive(CandidType, Serialize, Deserialize, Clone, Debug)]
+pub struct SolanaSaleConfig {
+    pub sale_type: SolanaSaleType,
+}
+
+#[derive(CandidType, Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub enum SolanaSaleType {
+    FixedPrice,
+    OpenEdition,
+    DutchAuction,
+}
+
+#[derive(CandidType, Serialize, Deserialize, Clone, Debug)]
+pub struct ICPSaleConfig {
+    pub sale_type: ICPSaleType,
+}
+
+#[derive(CandidType, Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub enum ICPSaleType {
+    FixedPrice,
+    OpenEdition,
+}
+
+#[derive(CandidType, Serialize, Deserialize, Clone, Debug)]
+pub struct EthereumSaleConfig {
+    pub sale_type: EthereumSaleType,
+}
+
+#[derive(CandidType, Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub enum EthereumSaleType {
+    FixedPrice,
+    OpenEdition,
+    DutchAuction,
+}
+
+#[derive(CandidType, Serialize, Deserialize, Clone, Debug)]
+pub struct MovementSaleConfig {
+    pub sale_type: MovementSaleType,
+}
+
+#[derive(CandidType, Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub enum MovementSaleType {
+    FixedPrice,
+    OpenEdition,
+}
+
+#[derive(CandidType, Serialize, Deserialize, Clone, Debug)]
 pub struct Collection {
     pub id: String,
     pub blockchain: Blockchain,
@@ -112,6 +175,7 @@ pub struct Collection {
     pub metadata: Vec<(String, String)>,
     pub status: CollectionStatus,
     pub chain_data: ChainData,
+    pub initial_sale: Option<InitialSale>,
     pub created_at: u64,
     pub updated_at: u64,
 }
@@ -183,4 +247,16 @@ pub struct UpdateMovementStageArgs {
     pub collection_address: Option<String>,
     pub manifest_url: Option<String>,
     pub collection_created: Option<bool>,
+}
+
+#[derive(CandidType, Serialize, Deserialize, Clone, Debug)]
+pub struct UpdateInitialSaleArgs {
+    pub collection_id: String,
+    pub initial_sale: Option<InitialSale>,
+}
+
+#[derive(CandidType, Serialize, Deserialize, Clone, Debug)]
+pub struct SetSaleEndedArgs {
+    pub collection_id: String,
+    pub ended: bool,
 }

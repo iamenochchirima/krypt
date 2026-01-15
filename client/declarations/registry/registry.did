@@ -18,6 +18,7 @@ type Collection = record {
   status : CollectionStatus;
   updated_at : nat64;
   creator : principal;
+  initial_sale : opt InitialSale;
   image_url : text;
   metadata : vec record { text; text };
   banner_url : opt text;
@@ -61,7 +62,22 @@ type ICPDeploymentStage = variant {
   CanisterCreating;
   Deployed;
 };
+type ICPSaleConfig = record { sale_type : ICPSaleType };
+type ICPSaleType = variant { OpenEdition; FixedPrice };
 type InitArgs = record { admin : principal };
+type InitialSale = record {
+  end_time : opt nat64;
+  ended : bool;
+  start_time : nat64;
+  config : InitialSaleConfig;
+  public_start_time : opt nat64;
+};
+type InitialSaleConfig = variant {
+  ICP : ICPSaleConfig;
+  Ethereum : SolanaSaleConfig;
+  Solana : SolanaSaleConfig;
+  Movement : ICPSaleConfig;
+};
 type MovementCollectionData = record {
   collection_address : opt text;
   manifest_url : opt text;
@@ -75,6 +91,7 @@ type MovementDeploymentStage = variant {
 };
 type Result = variant { Ok : text; Err : text };
 type Result_1 = variant { Ok; Err : text };
+type SetSaleEndedArgs = record { collection_id : text; ended : bool };
 type SolanaCollectionData = record {
   files_uploaded : bool;
   metadata_created : bool;
@@ -92,8 +109,14 @@ type SolanaDeploymentStage = variant {
   FilesUploading;
   MetadataCreating;
 };
+type SolanaSaleConfig = record { sale_type : SolanaSaleType };
+type SolanaSaleType = variant { OpenEdition; FixedPrice; DutchAuction };
 type UpdateCollectionStatusArgs = record {
   status : CollectionStatus;
+  collection_id : text;
+};
+type UpdateInitialSaleArgs = record {
+  initial_sale : opt InitialSale;
   collection_id : text;
 };
 type UpdateMovementStageArgs = record {
@@ -124,9 +147,14 @@ service : (InitArgs) -> {
       vec Collection,
     ) query;
   get_creator_draft_collections : (principal) -> (vec Collection) query;
+  get_ended_sales : (nat32, nat32) -> (vec Collection) query;
+  get_live_sales : (nat32, nat32) -> (vec Collection) query;
   get_my_draft_collections : () -> (vec Collection) query;
+  get_upcoming_sales : (nat32, nat32) -> (vec Collection) query;
   get_user_collections : (nat32, nat32) -> (vec Collection) query;
+  set_sale_ended : (SetSaleEndedArgs) -> (Result_1);
   update_collection_status : (UpdateCollectionStatusArgs) -> (Result_1);
+  update_initial_sale : (UpdateInitialSaleArgs) -> (Result_1);
   update_movement_stage : (UpdateMovementStageArgs) -> (Result_1);
   update_solana_stage : (UpdateSolanaStageArgs) -> (Result_1);
 }

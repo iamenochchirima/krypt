@@ -86,16 +86,15 @@ async fn main() -> std::io::Result<()> {
     println!("🌍 Environment: {}", config.environment);
 
     HttpServer::new(move || {
-        // Configure CORS
         let cors = Cors::default()
-            .allowed_origin("http://localhost:3000")  // Allow Next.js dev server
-            .allowed_origin("http://127.0.0.1:3000")  // Alternative localhost
-            .allowed_origin("https://cryptodotfun.com")  // Production frontend
-            .allowed_origin("https://www.cryptodotfun.com")  // Production frontend with www
+            .allowed_origin("http://localhost:3000")
+            .allowed_origin("http://127.0.0.1:3000")
+            .allowed_origin("https://cryptodotfun.com")
+            .allowed_origin("https://www.cryptodotfun.com")
             .allowed_methods(vec!["GET", "POST", "PUT", "DELETE", "OPTIONS"])
-            .allowed_headers(vec!["Content-Type", "Authorization", "Accept"])
-            .supports_credentials()  // Allow cookies/credentials
-            .max_age(3600);  // Cache preflight for 1 hour
+            .allow_any_header()
+            .supports_credentials()
+            .max_age(3600);
 
         App::new()
             .app_data(actix_web::web::Data::new(db_pool.clone()))

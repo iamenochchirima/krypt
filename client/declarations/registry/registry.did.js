@@ -85,12 +85,37 @@ export const idlFactory = ({ IDL }) => {
     'Draft' : IDL.Null,
     'Completed' : IDL.Null,
   });
+  const ICPSaleType = IDL.Variant({
+    'OpenEdition' : IDL.Null,
+    'FixedPrice' : IDL.Null,
+  });
+  const ICPSaleConfig = IDL.Record({ 'sale_type' : ICPSaleType });
+  const SolanaSaleType = IDL.Variant({
+    'OpenEdition' : IDL.Null,
+    'FixedPrice' : IDL.Null,
+    'DutchAuction' : IDL.Null,
+  });
+  const SolanaSaleConfig = IDL.Record({ 'sale_type' : SolanaSaleType });
+  const InitialSaleConfig = IDL.Variant({
+    'ICP' : ICPSaleConfig,
+    'Ethereum' : SolanaSaleConfig,
+    'Solana' : SolanaSaleConfig,
+    'Movement' : ICPSaleConfig,
+  });
+  const InitialSale = IDL.Record({
+    'end_time' : IDL.Opt(IDL.Nat64),
+    'ended' : IDL.Bool,
+    'start_time' : IDL.Nat64,
+    'config' : InitialSaleConfig,
+    'public_start_time' : IDL.Opt(IDL.Nat64),
+  });
   const Collection = IDL.Record({
     'id' : IDL.Text,
     'floor_price' : IDL.Nat64,
     'status' : CollectionStatus,
     'updated_at' : IDL.Nat64,
     'creator' : IDL.Principal,
+    'initial_sale' : IDL.Opt(InitialSale),
     'image_url' : IDL.Text,
     'metadata' : IDL.Vec(IDL.Tuple(IDL.Text, IDL.Text)),
     'banner_url' : IDL.Opt(IDL.Text),
@@ -106,11 +131,19 @@ export const idlFactory = ({ IDL }) => {
     'symbol' : IDL.Text,
     'royalty_bps' : IDL.Nat16,
   });
+  const SetSaleEndedArgs = IDL.Record({
+    'collection_id' : IDL.Text,
+    'ended' : IDL.Bool,
+  });
+  const Result_1 = IDL.Variant({ 'Ok' : IDL.Null, 'Err' : IDL.Text });
   const UpdateCollectionStatusArgs = IDL.Record({
     'status' : CollectionStatus,
     'collection_id' : IDL.Text,
   });
-  const Result_1 = IDL.Variant({ 'Ok' : IDL.Null, 'Err' : IDL.Text });
+  const UpdateInitialSaleArgs = IDL.Record({
+    'initial_sale' : IDL.Opt(InitialSale),
+    'collection_id' : IDL.Text,
+  });
   const UpdateMovementStageArgs = IDL.Record({
     'collection_address' : IDL.Opt(IDL.Text),
     'manifest_url' : IDL.Opt(IDL.Text),
@@ -153,17 +186,34 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Vec(Collection)],
         ['query'],
       ),
+    'get_ended_sales' : IDL.Func(
+        [IDL.Nat32, IDL.Nat32],
+        [IDL.Vec(Collection)],
+        ['query'],
+      ),
+    'get_live_sales' : IDL.Func(
+        [IDL.Nat32, IDL.Nat32],
+        [IDL.Vec(Collection)],
+        ['query'],
+      ),
     'get_my_draft_collections' : IDL.Func([], [IDL.Vec(Collection)], ['query']),
+    'get_upcoming_sales' : IDL.Func(
+        [IDL.Nat32, IDL.Nat32],
+        [IDL.Vec(Collection)],
+        ['query'],
+      ),
     'get_user_collections' : IDL.Func(
         [IDL.Nat32, IDL.Nat32],
         [IDL.Vec(Collection)],
         ['query'],
       ),
+    'set_sale_ended' : IDL.Func([SetSaleEndedArgs], [Result_1], []),
     'update_collection_status' : IDL.Func(
         [UpdateCollectionStatusArgs],
         [Result_1],
         [],
       ),
+    'update_initial_sale' : IDL.Func([UpdateInitialSaleArgs], [Result_1], []),
     'update_movement_stage' : IDL.Func(
         [UpdateMovementStageArgs],
         [Result_1],

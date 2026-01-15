@@ -6,12 +6,12 @@ import {
   WalletProvider,
 } from '@solana/wallet-adapter-react';
 import { WalletModalProvider } from '@solana/wallet-adapter-react-ui';
-import { clusterApiUrl } from '@solana/web3.js';
 import { WalletAdapterNetwork } from '@solana/wallet-adapter-base';
 import {
   PhantomWalletAdapter,
   SolflareWalletAdapter,
 } from '@solana/wallet-adapter-wallets';
+import { getSolanaRpcUrl, getCurrentSolanaNetwork } from '@/constants/solana';
 import '@solana/wallet-adapter-react-ui/styles.css';
 
 interface SolanaProviderProps {
@@ -19,9 +19,10 @@ interface SolanaProviderProps {
 }
 
 export function SolanaProvider({ children }: SolanaProviderProps) {
-  // Use Devnet for development, Mainnet for production
-  const network = WalletAdapterNetwork.Devnet;
-  const endpoint = useMemo(() => clusterApiUrl(network), [network]);
+  const network = getCurrentSolanaNetwork() === 'mainnet'
+    ? WalletAdapterNetwork.Mainnet
+    : WalletAdapterNetwork.Devnet;
+  const endpoint = useMemo(() => getSolanaRpcUrl(), []);
 
   const wallets = useMemo(
     () => [

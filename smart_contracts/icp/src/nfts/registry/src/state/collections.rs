@@ -2,7 +2,9 @@ use ic_stable_structures::StableBTreeMap;
 use canister_uuid::get_uuid;
 use std::cell::RefCell;
 use crate::types::{
-    Blockchain, ChainData, Collection, CollectionStatus, CreateCollectionArgs, UpdateCollectionStatusArgs, UpdateSolanaStageArgs, UpdateMovementStageArgs
+    Blockchain, ChainData, Collection, CollectionStatus, CreateCollectionArgs,
+    UpdateCollectionStatusArgs, UpdateSolanaStageArgs, UpdateMovementStageArgs,
+    UpdateInitialSaleArgs, SetSaleEndedArgs,
 };
 use super::memory::{ get_memory, COLLECTIONS_MEMORY_ID };
 use candid::Principal;
@@ -37,6 +39,7 @@ pub async fn add_collection(
         metadata: args.metadata,
         status: CollectionStatus::Draft,
         chain_data: args.chain_data,
+        initial_sale: None,
         created_at: ic_cdk::api::time(),
         updated_at: ic_cdk::api::time(),
     };
@@ -238,5 +241,99 @@ pub fn remove_collection(collection_id: &str) -> Result<Collection, String> {
         collections
             .remove(&collection_id.to_string())
             .ok_or_else(|| "Collection not found".to_string())
+    })
+}
+
+pub fn update_initial_sale(args: UpdateInitialSaleArgs) -> Result<(), String> {
+    COLLECTIONS.with(|c| {
+        let mut collections = c.borrow_mut();
+        if let Some(mut collection) = collections.get(&args.collection_id) {
+            collection.initial_sale = args.initial_sale;
+            collection.updated_at = ic_cdk::api::time();
+            collections.insert(args.collection_id, collection);
+            Ok(())
+        } else {
+            Err("Collection not found".to_string())
+        }
+    })
+}
+
+pub fn set_sale_ended(args: SetSaleEndedArgs) -> Result<(), String> {
+    COLLECTIONS.with(|c| {
+        let mut collections = c.borrow_mut();
+        if let Some(mut collection) = collections.get(&args.collection_id) {
+            if let Some(ref mut sale) = collection.initial_sale {
+                sale.ended = args.ended;
+                collection.updated_at = ic_cdk::api::time();
+                collections.insert(args.collection_id, collection);
+                Ok(())
+            } else {
+                Err("Collection has no initial sale".to_string())
+            }
+        } else {
+            Err("Collection not found".to_string())
+        }
+    })
+}
+
+pub fn get_upcoming_sales(page: u32, limit: u32) -> Vec<Collection> {
+    let now = ic_cdk::api::time();
+    COLLECTIONS.with(|c| {
+        c.borrow()
+            .iter()
+            .filter(|entry| {
+                if let Some(ref sale) = entry.value().initial_sale {
+                    !sale.ended && sale.start_time > now
+                } else {
+                    false
+                }
+            })
+            .skip((page * limit) as usize)
+            .take(limit as usize)
+            .map(|entry| entry.value())
+            .collect()
+    })
+}
+
+pub fn get_live_sales(page: u32, limit: u32) -> Vec<Collection> {
+    let now = ic_cdk::api::time();
+    COLLECTIONS.with(|c| {
+        c.borrow()
+            .iter()
+            .filter(|entry| {
+                if let Some(ref sale) = entry.value().initial_sale {
+                    if sale.ended {
+                        return false;
+                    }
+                    let started = now >= sale.start_time;
+                    let not_ended = sale.end_time.map(|end| now < end).unwrap_or(true);
+                    started && not_ended
+                } else {
+                    false
+                }
+            })
+            .skip((page * limit) as usize)
+            .take(limit as usize)
+            .map(|entry| entry.value())
+            .collect()
+    })
+}
+
+pub fn get_ended_sales(page: u32, limit: u32) -> Vec<Collection> {
+    let now = ic_cdk::api::time();
+    COLLECTIONS.with(|c| {
+        c.borrow()
+            .iter()
+            .filter(|entry| {
+                if let Some(ref sale) = entry.value().initial_sale {
+                    sale.ended || sale.end_time.map(|end| now >= end).unwrap_or(false)
+                } else {
+                    false
+                }
+            })
+            .skip((page * limit) as usize)
+            .take(limit as usize)
+            .map(|entry| entry.value())
+            .collect()
     })
 }
