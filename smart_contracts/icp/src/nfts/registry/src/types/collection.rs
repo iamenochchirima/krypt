@@ -28,33 +28,52 @@ pub enum ChainData {
     Movement(MovementCollectionData),
 }
 
+#[derive(CandidType, Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub enum SolanaNftStandard {
+    Legacy,
+    Core,
+    Compressed,
+}
+
 #[derive(CandidType, Serialize, Deserialize, Clone, Debug)]
-pub struct SolanaCollectionData {
+pub enum SolanaCollectionData {
+    Legacy(LegacyCollectionData),
+    Core(CoreCollectionData),
+    Compressed(CompressedCollectionData),
+}
+
+#[derive(CandidType, Serialize, Deserialize, Clone, Debug)]
+pub struct LegacyCollectionData {
     pub deployment_stage: SolanaDeploymentStage,
     pub candy_machine_address: Option<String>,
     pub collection_mint: Option<String>,
     pub manifest_url: Option<String>,
-    pub files_uploaded: bool,
-    pub metadata_created: bool,
-    pub candy_machine_items_uploaded: bool,
-    pub candy_machine_authority: Option<String>,
-    pub candy_machine_config: Option<CandyMachineConfig>,
+    pub authority: Option<String>,
 }
 
 #[derive(CandidType, Serialize, Deserialize, Clone, Debug)]
-pub struct CandyMachineConfig {
-    pub price: u64, 
-    pub go_live_date: Option<u64>, 
-    pub items_available: u64, 
-    pub seller_fee_basis_points: u16,
-    pub symbol: String,
+pub struct CoreCollectionData {
+    pub deployment_stage: SolanaDeploymentStage,
+    pub collection_address: Option<String>,
+    pub candy_machine_address: Option<String>,
+    pub manifest_url: Option<String>,
+    pub authority: Option<String>,
+}
+
+#[derive(CandidType, Serialize, Deserialize, Clone, Debug)]
+pub struct CompressedCollectionData {
+    pub deployment_stage: SolanaDeploymentStage,
+    pub merkle_tree_address: Option<String>,
+    pub collection_mint: Option<String>,
+    pub manifest_url: Option<String>,
+    pub authority: Option<String>,
 }
 
 #[derive(CandidType, Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub enum SolanaDeploymentStage {
     FilesUploading,
     MetadataCreating,
-    CandyMachineDeploying,
+    Deploying,
     Deployed,
 }
 
@@ -71,9 +90,16 @@ pub enum ICPDeploymentStage {
     Deployed,
 }
 
+#[derive(CandidType, Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub enum EthereumContractType {
+    ERC721,
+    ERC1155,
+}
+
 #[derive(CandidType, Serialize, Deserialize, Clone, Debug)]
 pub struct EthereumCollectionData {
     pub deployment_stage: EthereumDeploymentStage,
+    pub contract_type: EthereumContractType,
     pub contract_address: Option<String>,
     pub chain_id: u64,
     pub chain_name: String,
@@ -310,14 +336,41 @@ pub struct UpdateCollectionStatusArgs {
 #[derive(CandidType, Serialize, Deserialize, Clone, Debug)]
 pub struct UpdateSolanaStageArgs {
     pub collection_id: String,
+    pub update_data: SolanaStageUpdateData,
+}
+
+#[derive(CandidType, Serialize, Deserialize, Clone, Debug)]
+pub enum SolanaStageUpdateData {
+    Legacy(LegacyStageUpdate),
+    Core(CoreStageUpdate),
+    Compressed(CompressedStageUpdate),
+}
+
+#[derive(CandidType, Serialize, Deserialize, Clone, Debug)]
+pub struct LegacyStageUpdate {
     pub stage: SolanaDeploymentStage,
     pub candy_machine_address: Option<String>,
     pub collection_mint: Option<String>,
     pub manifest_url: Option<String>,
-    pub files_uploaded: Option<bool>,
-    pub metadata_created: Option<bool>,
-    pub candy_machine_authority: Option<String>,
-    pub candy_machine_config: Option<CandyMachineConfig>,
+    pub authority: Option<String>,
+}
+
+#[derive(CandidType, Serialize, Deserialize, Clone, Debug)]
+pub struct CoreStageUpdate {
+    pub stage: SolanaDeploymentStage,
+    pub collection_address: Option<String>,
+    pub candy_machine_address: Option<String>,
+    pub manifest_url: Option<String>,
+    pub authority: Option<String>,
+}
+
+#[derive(CandidType, Serialize, Deserialize, Clone, Debug)]
+pub struct CompressedStageUpdate {
+    pub stage: SolanaDeploymentStage,
+    pub merkle_tree_address: Option<String>,
+    pub collection_mint: Option<String>,
+    pub manifest_url: Option<String>,
+    pub authority: Option<String>,
 }
 
 #[derive(CandidType, Serialize, Deserialize, Clone, Debug)]

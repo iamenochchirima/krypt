@@ -160,32 +160,60 @@ pub fn update_collection_status(args: UpdateCollectionStatusArgs) -> Result<(), 
 }
 
 pub fn update_solana_stage(args: UpdateSolanaStageArgs) -> Result<(), String> {
+    use crate::types::collection::{SolanaStageUpdateData, SolanaCollectionData, LegacyCollectionData, CoreCollectionData, CompressedCollectionData};
+
     COLLECTIONS.with(|c| {
         let mut collections = c.borrow_mut();
 
         if let Some(mut collection) = collections.get(&args.collection_id) {
             if let ChainData::Solana(ref mut data) = collection.chain_data {
-                data.deployment_stage = args.stage;
-                if let Some(addr) = args.candy_machine_address {
-                    data.candy_machine_address = Some(addr);
-                }
-                if let Some(mint) = args.collection_mint {
-                    data.collection_mint = Some(mint);
-                }
-                if let Some(url) = args.manifest_url {
-                    data.manifest_url = Some(url);
-                }
-                if let Some(uploaded) = args.files_uploaded {
-                    data.files_uploaded = uploaded;
-                }
-                if let Some(created) = args.metadata_created {
-                    data.metadata_created = created;
-                }
-                if let Some(authority) = args.candy_machine_authority {
-                    data.candy_machine_authority = Some(authority);
-                }
-                if let Some(config) = args.candy_machine_config {
-                    data.candy_machine_config = Some(config);
+                match (&mut *data, args.update_data) {
+                    (SolanaCollectionData::Legacy(legacy_data), SolanaStageUpdateData::Legacy(update)) => {
+                        legacy_data.deployment_stage = update.stage;
+                        if let Some(addr) = update.candy_machine_address {
+                            legacy_data.candy_machine_address = Some(addr);
+                        }
+                        if let Some(mint) = update.collection_mint {
+                            legacy_data.collection_mint = Some(mint);
+                        }
+                        if let Some(url) = update.manifest_url {
+                            legacy_data.manifest_url = Some(url);
+                        }
+                        if let Some(auth) = update.authority {
+                            legacy_data.authority = Some(auth);
+                        }
+                    }
+                    (SolanaCollectionData::Core(core_data), SolanaStageUpdateData::Core(update)) => {
+                        core_data.deployment_stage = update.stage;
+                        if let Some(addr) = update.collection_address {
+                            core_data.collection_address = Some(addr);
+                        }
+                        if let Some(cm_addr) = update.candy_machine_address {
+                            core_data.candy_machine_address = Some(cm_addr);
+                        }
+                        if let Some(url) = update.manifest_url {
+                            core_data.manifest_url = Some(url);
+                        }
+                        if let Some(auth) = update.authority {
+                            core_data.authority = Some(auth);
+                        }
+                    }
+                    (SolanaCollectionData::Compressed(compressed_data), SolanaStageUpdateData::Compressed(update)) => {
+                        compressed_data.deployment_stage = update.stage;
+                        if let Some(tree) = update.merkle_tree_address {
+                            compressed_data.merkle_tree_address = Some(tree);
+                        }
+                        if let Some(mint) = update.collection_mint {
+                            compressed_data.collection_mint = Some(mint);
+                        }
+                        if let Some(url) = update.manifest_url {
+                            compressed_data.manifest_url = Some(url);
+                        }
+                        if let Some(auth) = update.authority {
+                            compressed_data.authority = Some(auth);
+                        }
+                    }
+                    _ => return Err("Update data type doesn't match collection type".to_string()),
                 }
                 collection.updated_at = ic_cdk::api::time();
                 collections.insert(args.collection_id, collection);

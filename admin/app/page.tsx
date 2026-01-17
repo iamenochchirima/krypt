@@ -4,7 +4,7 @@ import { useAuth } from "@/providers/auth-provider"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Sidebar } from "@/components/sidebar"
-import { Loader2, Shield, Grid3X3, Users, Activity, DollarSign, TrendingUp, TrendingDown } from "lucide-react"
+import { Loader2, Shield, Grid3X3, Users, Activity, DollarSign, TrendingUp, TrendingDown, AlertCircle } from "lucide-react"
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell } from "recharts"
 
 // Mock data for charts
@@ -32,7 +32,7 @@ const userTypeData = [
 ]
 
 export default function AdminDashboard() {
-  const { isAuthenticated, isLoading, login } = useAuth()
+  const { isAuthenticated, isBackendAuthenticated, isLoading, isAuthenticating, login, error, clearError } = useAuth()
 
   if (isLoading) {
     return (
@@ -53,10 +53,44 @@ export default function AdminDashboard() {
             <CardTitle>Admin Access</CardTitle>
             <CardDescription>Sign in with Internet Identity to access the admin panel</CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-4">
+            {error && (
+              <div className="flex items-center gap-2 rounded-md bg-destructive/10 p-3 text-sm text-destructive">
+                <AlertCircle className="h-4 w-4" />
+                <span>{error}</span>
+                <Button variant="ghost" size="sm" className="ml-auto h-auto p-1" onClick={clearError}>
+                  Dismiss
+                </Button>
+              </div>
+            )}
             <Button className="w-full" onClick={login}>
               Sign in with Internet Identity
             </Button>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  // Show authenticating state while server auth is in progress
+  if (isAuthenticating || !isBackendAuthenticated) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <Card className="w-[400px]">
+          <CardHeader className="text-center">
+            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
+              <Loader2 className="h-6 w-6 animate-spin text-primary" />
+            </div>
+            <CardTitle>Authenticating</CardTitle>
+            <CardDescription>Verifying your identity with the server...</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {error && (
+              <div className="flex items-center gap-2 rounded-md bg-destructive/10 p-3 text-sm text-destructive">
+                <AlertCircle className="h-4 w-4" />
+                <span>{error}</span>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>

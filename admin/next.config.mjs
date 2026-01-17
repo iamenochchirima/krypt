@@ -9,6 +9,7 @@ const nextConfig = {
       { protocol: "https", hostname: "**" },
     ],
   },
+  transpilePackages: ["../client"],
 };
 
 export default nextConfig;

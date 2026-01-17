@@ -6,13 +6,6 @@ export type Blockchain = { 'ICP' : null } |
   { 'Ethereum' : null } |
   { 'Solana' : null } |
   { 'Movement' : null };
-export interface CandyMachineConfig {
-  'seller_fee_basis_points' : number,
-  'items_available' : bigint,
-  'go_live_date' : [] | [bigint],
-  'price' : bigint,
-  'symbol' : string,
-}
 export type ChainData = { 'ICP' : ICPCollectionData } |
   { 'Ethereum' : EthereumCollectionData } |
   { 'Solana' : SolanaCollectionData } |
@@ -56,6 +49,34 @@ export interface CollectionsResult {
   'total' : bigint,
   'collections' : Array<Collection>,
 }
+export interface CompressedCollectionData {
+  'manifest_url' : [] | [string],
+  'collection_mint' : [] | [string],
+  'deployment_stage' : SolanaDeploymentStage,
+  'merkle_tree_address' : [] | [string],
+  'authority' : [] | [string],
+}
+export interface CompressedStageUpdate {
+  'manifest_url' : [] | [string],
+  'collection_mint' : [] | [string],
+  'stage' : SolanaDeploymentStage,
+  'merkle_tree_address' : [] | [string],
+  'authority' : [] | [string],
+}
+export interface CoreCollectionData {
+  'collection_address' : [] | [string],
+  'manifest_url' : [] | [string],
+  'candy_machine_address' : [] | [string],
+  'deployment_stage' : SolanaDeploymentStage,
+  'authority' : [] | [string],
+}
+export interface CoreStageUpdate {
+  'collection_address' : [] | [string],
+  'manifest_url' : [] | [string],
+  'stage' : SolanaDeploymentStage,
+  'candy_machine_address' : [] | [string],
+  'authority' : [] | [string],
+}
 export interface CreateCollectionArgs {
   'image_url' : string,
   'metadata' : Array<[string, string]>,
@@ -73,6 +94,7 @@ export interface CreateCollectionArgs {
   'royalty_bps' : number,
 }
 export interface EthereumCollectionData {
+  'contract_type' : EthereumContractType,
   'files_uploaded' : boolean,
   'manifest_url' : [] | [string],
   'mint_price_wei' : [] | [bigint],
@@ -83,6 +105,8 @@ export interface EthereumCollectionData {
   'contract_address' : [] | [string],
   'owner_address' : [] | [string],
 }
+export type EthereumContractType = { 'ERC1155' : null } |
+  { 'ERC721' : null };
 export type EthereumDeploymentStage = { 'ContractDeploying' : null } |
   { 'Deployed' : null } |
   { 'FilesUploading' : null };
@@ -108,6 +132,20 @@ export type InitialSaleConfig = { 'ICP' : ICPSaleConfig } |
   { 'Ethereum' : SolanaSaleConfig } |
   { 'Solana' : SolanaSaleConfig } |
   { 'Movement' : ICPSaleConfig };
+export interface LegacyCollectionData {
+  'manifest_url' : [] | [string],
+  'collection_mint' : [] | [string],
+  'candy_machine_address' : [] | [string],
+  'deployment_stage' : SolanaDeploymentStage,
+  'authority' : [] | [string],
+}
+export interface LegacyStageUpdate {
+  'manifest_url' : [] | [string],
+  'collection_mint' : [] | [string],
+  'stage' : SolanaDeploymentStage,
+  'candy_machine_address' : [] | [string],
+  'authority' : [] | [string],
+}
 export interface MovementCollectionData {
   'collection_address' : [] | [string],
   'manifest_url' : [] | [string],
@@ -141,18 +179,10 @@ export interface Socials {
   'discord' : [] | [string],
   'telegram' : [] | [string],
 }
-export interface SolanaCollectionData {
-  'files_uploaded' : boolean,
-  'metadata_created' : boolean,
-  'manifest_url' : [] | [string],
-  'candy_machine_config' : [] | [CandyMachineConfig],
-  'collection_mint' : [] | [string],
-  'candy_machine_address' : [] | [string],
-  'deployment_stage' : SolanaDeploymentStage,
-  'candy_machine_items_uploaded' : boolean,
-  'candy_machine_authority' : [] | [string],
-}
-export type SolanaDeploymentStage = { 'CandyMachineDeploying' : null } |
+export type SolanaCollectionData = { 'Core' : CoreCollectionData } |
+  { 'Compressed' : CompressedCollectionData } |
+  { 'Legacy' : LegacyCollectionData };
+export type SolanaDeploymentStage = { 'Deploying' : null } |
   { 'Deployed' : null } |
   { 'FilesUploading' : null } |
   { 'MetadataCreating' : null };
@@ -160,6 +190,9 @@ export interface SolanaSaleConfig { 'sale_type' : SolanaSaleType }
 export type SolanaSaleType = { 'OpenEdition' : null } |
   { 'FixedPrice' : null } |
   { 'DutchAuction' : null };
+export type SolanaStageUpdateData = { 'Core' : CoreStageUpdate } |
+  { 'Compressed' : CompressedStageUpdate } |
+  { 'Legacy' : LegacyStageUpdate };
 export interface UpdateCategoryArgs {
   'collection_id' : string,
   'category' : [] | [CollectionCategory],
@@ -193,15 +226,8 @@ export interface UpdateSocialsArgs {
   'socials' : [] | [Socials],
 }
 export interface UpdateSolanaStageArgs {
-  'files_uploaded' : [] | [boolean],
-  'metadata_created' : [] | [boolean],
-  'manifest_url' : [] | [string],
+  'update_data' : SolanaStageUpdateData,
   'collection_id' : string,
-  'candy_machine_config' : [] | [CandyMachineConfig],
-  'collection_mint' : [] | [string],
-  'stage' : SolanaDeploymentStage,
-  'candy_machine_address' : [] | [string],
-  'candy_machine_authority' : [] | [string],
 }
 export interface UpdateTagsArgs {
   'tags' : Array<string>,

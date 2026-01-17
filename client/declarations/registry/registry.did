@@ -1,11 +1,4 @@
 type Blockchain = variant { ICP; Ethereum; Solana; Movement };
-type CandyMachineConfig = record {
-  seller_fee_basis_points : nat16;
-  items_available : nat64;
-  go_live_date : opt nat64;
-  price : nat64;
-  symbol : text;
-};
 type ChainData = variant {
   ICP : ICPCollectionData;
   Ethereum : EthereumCollectionData;
@@ -49,6 +42,34 @@ type CollectionCategory = variant {
 };
 type CollectionStatus = variant { Active; Draft };
 type CollectionsResult = record { total : nat64; collections : vec Collection };
+type CompressedCollectionData = record {
+  manifest_url : opt text;
+  collection_mint : opt text;
+  deployment_stage : SolanaDeploymentStage;
+  merkle_tree_address : opt text;
+  authority : opt text;
+};
+type CompressedStageUpdate = record {
+  manifest_url : opt text;
+  collection_mint : opt text;
+  stage : SolanaDeploymentStage;
+  merkle_tree_address : opt text;
+  authority : opt text;
+};
+type CoreCollectionData = record {
+  collection_address : opt text;
+  manifest_url : opt text;
+  candy_machine_address : opt text;
+  deployment_stage : SolanaDeploymentStage;
+  authority : opt text;
+};
+type CoreStageUpdate = record {
+  collection_address : opt text;
+  manifest_url : opt text;
+  stage : SolanaDeploymentStage;
+  candy_machine_address : opt text;
+  authority : opt text;
+};
 type CreateCollectionArgs = record {
   image_url : text;
   metadata : vec record { text; text };
@@ -66,6 +87,7 @@ type CreateCollectionArgs = record {
   royalty_bps : nat16;
 };
 type EthereumCollectionData = record {
+  contract_type : EthereumContractType;
   files_uploaded : bool;
   manifest_url : opt text;
   mint_price_wei : opt nat64;
@@ -76,6 +98,7 @@ type EthereumCollectionData = record {
   contract_address : opt text;
   owner_address : opt text;
 };
+type EthereumContractType = variant { ERC1155; ERC721 };
 type EthereumDeploymentStage = variant {
   ContractDeploying;
   Deployed;
@@ -106,6 +129,20 @@ type InitialSaleConfig = variant {
   Solana : SolanaSaleConfig;
   Movement : ICPSaleConfig;
 };
+type LegacyCollectionData = record {
+  manifest_url : opt text;
+  collection_mint : opt text;
+  candy_machine_address : opt text;
+  deployment_stage : SolanaDeploymentStage;
+  authority : opt text;
+};
+type LegacyStageUpdate = record {
+  manifest_url : opt text;
+  collection_mint : opt text;
+  stage : SolanaDeploymentStage;
+  candy_machine_address : opt text;
+  authority : opt text;
+};
 type MovementCollectionData = record {
   collection_address : opt text;
   manifest_url : opt text;
@@ -129,25 +166,24 @@ type Socials = record {
   discord : opt text;
   telegram : opt text;
 };
-type SolanaCollectionData = record {
-  files_uploaded : bool;
-  metadata_created : bool;
-  manifest_url : opt text;
-  candy_machine_config : opt CandyMachineConfig;
-  collection_mint : opt text;
-  candy_machine_address : opt text;
-  deployment_stage : SolanaDeploymentStage;
-  candy_machine_items_uploaded : bool;
-  candy_machine_authority : opt text;
+type SolanaCollectionData = variant {
+  Core : CoreCollectionData;
+  Compressed : CompressedCollectionData;
+  Legacy : LegacyCollectionData;
 };
 type SolanaDeploymentStage = variant {
-  CandyMachineDeploying;
+  Deploying;
   Deployed;
   FilesUploading;
   MetadataCreating;
 };
 type SolanaSaleConfig = record { sale_type : SolanaSaleType };
 type SolanaSaleType = variant { OpenEdition; FixedPrice; DutchAuction };
+type SolanaStageUpdateData = variant {
+  Core : CoreStageUpdate;
+  Compressed : CompressedStageUpdate;
+  Legacy : LegacyStageUpdate;
+};
 type UpdateCategoryArgs = record {
   collection_id : text;
   category : opt CollectionCategory;
@@ -178,15 +214,8 @@ type UpdateMovementStageArgs = record {
 type UpdateSlugArgs = record { slug : text; collection_id : text };
 type UpdateSocialsArgs = record { collection_id : text; socials : opt Socials };
 type UpdateSolanaStageArgs = record {
-  files_uploaded : opt bool;
-  metadata_created : opt bool;
-  manifest_url : opt text;
+  update_data : SolanaStageUpdateData;
   collection_id : text;
-  candy_machine_config : opt CandyMachineConfig;
-  collection_mint : opt text;
-  stage : SolanaDeploymentStage;
-  candy_machine_address : opt text;
-  candy_machine_authority : opt text;
 };
 type UpdateTagsArgs = record { tags : vec text; collection_id : text };
 service : (InitArgs) -> {

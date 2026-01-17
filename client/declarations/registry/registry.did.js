@@ -42,12 +42,17 @@ export const idlFactory = ({ IDL }) => {
     'canister_id' : IDL.Opt(IDL.Principal),
     'deployment_stage' : ICPDeploymentStage,
   });
+  const EthereumContractType = IDL.Variant({
+    'ERC1155' : IDL.Null,
+    'ERC721' : IDL.Null,
+  });
   const EthereumDeploymentStage = IDL.Variant({
     'ContractDeploying' : IDL.Null,
     'Deployed' : IDL.Null,
     'FilesUploading' : IDL.Null,
   });
   const EthereumCollectionData = IDL.Record({
+    'contract_type' : EthereumContractType,
     'files_uploaded' : IDL.Bool,
     'manifest_url' : IDL.Opt(IDL.Text),
     'mint_price_wei' : IDL.Opt(IDL.Nat64),
@@ -58,29 +63,37 @@ export const idlFactory = ({ IDL }) => {
     'contract_address' : IDL.Opt(IDL.Text),
     'owner_address' : IDL.Opt(IDL.Text),
   });
-  const CandyMachineConfig = IDL.Record({
-    'seller_fee_basis_points' : IDL.Nat16,
-    'items_available' : IDL.Nat64,
-    'go_live_date' : IDL.Opt(IDL.Nat64),
-    'price' : IDL.Nat64,
-    'symbol' : IDL.Text,
-  });
   const SolanaDeploymentStage = IDL.Variant({
-    'CandyMachineDeploying' : IDL.Null,
+    'Deploying' : IDL.Null,
     'Deployed' : IDL.Null,
     'FilesUploading' : IDL.Null,
     'MetadataCreating' : IDL.Null,
   });
-  const SolanaCollectionData = IDL.Record({
-    'files_uploaded' : IDL.Bool,
-    'metadata_created' : IDL.Bool,
+  const CoreCollectionData = IDL.Record({
+    'collection_address' : IDL.Opt(IDL.Text),
     'manifest_url' : IDL.Opt(IDL.Text),
-    'candy_machine_config' : IDL.Opt(CandyMachineConfig),
+    'candy_machine_address' : IDL.Opt(IDL.Text),
+    'deployment_stage' : SolanaDeploymentStage,
+    'authority' : IDL.Opt(IDL.Text),
+  });
+  const CompressedCollectionData = IDL.Record({
+    'manifest_url' : IDL.Opt(IDL.Text),
+    'collection_mint' : IDL.Opt(IDL.Text),
+    'deployment_stage' : SolanaDeploymentStage,
+    'merkle_tree_address' : IDL.Opt(IDL.Text),
+    'authority' : IDL.Opt(IDL.Text),
+  });
+  const LegacyCollectionData = IDL.Record({
+    'manifest_url' : IDL.Opt(IDL.Text),
     'collection_mint' : IDL.Opt(IDL.Text),
     'candy_machine_address' : IDL.Opt(IDL.Text),
     'deployment_stage' : SolanaDeploymentStage,
-    'candy_machine_items_uploaded' : IDL.Bool,
-    'candy_machine_authority' : IDL.Opt(IDL.Text),
+    'authority' : IDL.Opt(IDL.Text),
+  });
+  const SolanaCollectionData = IDL.Variant({
+    'Core' : CoreCollectionData,
+    'Compressed' : CompressedCollectionData,
+    'Legacy' : LegacyCollectionData,
   });
   const MovementDeploymentStage = IDL.Variant({
     'Deployed' : IDL.Null,
@@ -211,16 +224,35 @@ export const idlFactory = ({ IDL }) => {
     'collection_id' : IDL.Text,
     'socials' : IDL.Opt(Socials),
   });
-  const UpdateSolanaStageArgs = IDL.Record({
-    'files_uploaded' : IDL.Opt(IDL.Bool),
-    'metadata_created' : IDL.Opt(IDL.Bool),
+  const CoreStageUpdate = IDL.Record({
+    'collection_address' : IDL.Opt(IDL.Text),
     'manifest_url' : IDL.Opt(IDL.Text),
-    'collection_id' : IDL.Text,
-    'candy_machine_config' : IDL.Opt(CandyMachineConfig),
+    'stage' : SolanaDeploymentStage,
+    'candy_machine_address' : IDL.Opt(IDL.Text),
+    'authority' : IDL.Opt(IDL.Text),
+  });
+  const CompressedStageUpdate = IDL.Record({
+    'manifest_url' : IDL.Opt(IDL.Text),
+    'collection_mint' : IDL.Opt(IDL.Text),
+    'stage' : SolanaDeploymentStage,
+    'merkle_tree_address' : IDL.Opt(IDL.Text),
+    'authority' : IDL.Opt(IDL.Text),
+  });
+  const LegacyStageUpdate = IDL.Record({
+    'manifest_url' : IDL.Opt(IDL.Text),
     'collection_mint' : IDL.Opt(IDL.Text),
     'stage' : SolanaDeploymentStage,
     'candy_machine_address' : IDL.Opt(IDL.Text),
-    'candy_machine_authority' : IDL.Opt(IDL.Text),
+    'authority' : IDL.Opt(IDL.Text),
+  });
+  const SolanaStageUpdateData = IDL.Variant({
+    'Core' : CoreStageUpdate,
+    'Compressed' : CompressedStageUpdate,
+    'Legacy' : LegacyStageUpdate,
+  });
+  const UpdateSolanaStageArgs = IDL.Record({
+    'update_data' : SolanaStageUpdateData,
+    'collection_id' : IDL.Text,
   });
   const UpdateTagsArgs = IDL.Record({
     'tags' : IDL.Vec(IDL.Text),

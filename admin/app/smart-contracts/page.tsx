@@ -63,7 +63,7 @@ export default function SmartContractsPage() {
     try {
       const sellerAta = await getAssociatedTokenAddress(mint, seller)
       const tokenAccount = await getAccount(connection, sellerAta)
-      return tokenAccount.amount > 0n
+      return tokenAccount.amount > BigInt(0)
     } catch {
       // Token account doesn't exist or has zero balance
       return false

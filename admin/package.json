@@ -35,6 +35,7 @@
     "@solana/wallet-adapter-wallets": "^0.19.35",
     "@solana/web3.js": "^1",
     "@tanstack/react-query": "^5.83.0",
+    "axios": "^1.7.9",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-react": "^0.454.0",
