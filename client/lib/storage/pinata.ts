@@ -20,29 +20,36 @@ export class PinataUploader implements StorageUploader {
       symbol: string
       description: string
       supply: number
-    }
+    },
+    onProgress?: (uploaded: number, total: number) => void,
+    bannerImage?: File
   ): Promise<UploadResult> {
-    console.log("Uploading to Pinata/IPFS...")
+    const totalFiles = nftAssets.length + (bannerImage ? 3 : 2)
+    let uploadedCount = 0
 
-    // 1. Upload collection image
-    console.log("Uploading collection image...")
     const collImageUpload = await this.client.upload.public.file(collectionImage)
     const collectionImageUrl = `https://gateway.pinata.cloud/ipfs/${collImageUpload.cid}`
-    console.log("Collection image uploaded:", collectionImageUrl)
+    uploadedCount++
+    onProgress?.(uploadedCount, totalFiles)
 
-    // 2. Upload NFT images
-    console.log(`Uploading ${nftAssets.length} NFT images...`)
+    let bannerImageUrl: string | undefined
+    if (bannerImage) {
+      const bannerUpload = await this.client.upload.public.file(bannerImage)
+      bannerImageUrl = `https://gateway.pinata.cloud/ipfs/${bannerUpload.cid}`
+      uploadedCount++
+      onProgress?.(uploadedCount, totalFiles)
+    }
+
     const nftImageUrls: string[] = []
     for (let i = 0; i < nftAssets.length; i++) {
       const file = nftAssets[i]
       const upload = await this.client.upload.public.file(file)
       const url = `https://gateway.pinata.cloud/ipfs/${upload.cid}`
       nftImageUrls.push(url)
-      console.log(`Image ${i + 1}/${nftAssets.length} uploaded`)
+      uploadedCount++
+      onProgress?.(uploadedCount, totalFiles)
     }
 
-    // 3. Upload metadata files
-    console.log("Uploading metadata files...")
     const metadataUrls: string[] = []
     for (let i = 0; i < nftImageUrls.length; i++) {
       const metadata: NFTMetadata = {
@@ -66,15 +73,13 @@ export class PinataUploader implements StorageUploader {
       const url = `https://gateway.pinata.cloud/ipfs/${upload.cid}`
       metadataUrls.push(url)
     }
-    console.log("Metadata files uploaded")
 
-    // 4. Upload manifest
-    console.log("Uploading manifest...")
     const manifest = {
       name: collectionData.name,
       symbol: collectionData.symbol,
       description: collectionData.description,
       image: collectionImageUrl,
+      ...(bannerImageUrl && { banner: bannerImageUrl }),
       seller_fee_basis_points: 500,
       properties: {
         files: metadataUrls.map((url) => ({
@@ -92,10 +97,10 @@ export class PinataUploader implements StorageUploader {
     )
     const manifestUpload = await this.client.upload.public.file(manifestFile)
     const manifestUrl = `https://gateway.pinata.cloud/ipfs/${manifestUpload.cid}`
-    console.log("Manifest uploaded:", manifestUrl)
 
     return {
       collectionImageUrl,
+      bannerImageUrl,
       manifestUrl,
       nftMetadataUrls: metadataUrls,
     }

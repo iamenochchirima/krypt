@@ -58,11 +58,15 @@ export class ArweaveUploader implements StorageUploader {
       symbol: string;
       description: string;
       supply: number;
-    }
+    },
+    onProgress?: (uploaded: number, total: number) => void,
+    bannerImage?: File
   ): Promise<UploadResult> {
     if (!this.uploader) throw new Error("Uploader not initialized");
 
-    // ---- 1) Collection image upload ----
+    const totalFiles = nftAssets.length + (bannerImage ? 3 : 2);
+    let uploadedCount = 0;
+
     const collFile = this.ensureFile(collectionImage, "collectionImage");
     const collReceipt = await this.uploader.upload(await this.fileToBuffer(collFile), {
       tags: [
@@ -72,8 +76,23 @@ export class ArweaveUploader implements StorageUploader {
       ],
     });
     const collectionImageUrl = `https://gateway.irys.xyz/${collReceipt.id}`;
+    uploadedCount++;
+    onProgress?.(uploadedCount, totalFiles);
 
-    // ---- 2) NFT images ----
+    let bannerImageUrl: string | undefined;
+    if (bannerImage) {
+      const bannerReceipt = await this.uploader.upload(await this.fileToBuffer(bannerImage), {
+        tags: [
+          { name: "Content-Type", value: bannerImage.type || "image/png" },
+          { name: "App-Name", value: "CryptoDotFun" },
+          { name: "Type", value: "banner-image" },
+        ],
+      });
+      bannerImageUrl = `https://gateway.irys.xyz/${bannerReceipt.id}`;
+      uploadedCount++;
+      onProgress?.(uploadedCount, totalFiles);
+    }
+
     const nftImageUrls: string[] = [];
     for (let i = 0; i < nftAssets.length; i++) {
       const file = this.ensureFile(nftAssets.item(i), `nftAsset[${i}]`);
@@ -86,9 +105,10 @@ export class ArweaveUploader implements StorageUploader {
         ],
       });
       nftImageUrls.push(`https://gateway.irys.xyz/${receipt.id}`);
+      uploadedCount++;
+      onProgress?.(uploadedCount, totalFiles);
     }
 
-    // ---- 3) Per-NFT metadata ----
     const metadataUrls: string[] = [];
     for (let i = 0; i < nftImageUrls.length; i++) {
       const srcFile = this.ensureFile(nftAssets.item(i), `nftAsset[${i}]`);
@@ -116,12 +136,12 @@ export class ArweaveUploader implements StorageUploader {
       metadataUrls.push(`https://gateway.irys.xyz/${receipt.id}`);
     }
 
-    // ---- 4) Collection manifest ----
     const manifest = {
       name: collectionData.name,
       symbol: collectionData.symbol,
       description: collectionData.description,
       image: collectionImageUrl,
+      ...(bannerImageUrl && { banner: bannerImageUrl }),
       seller_fee_basis_points: 500,
       properties: {
         files: metadataUrls.map((u) => ({ uri: u, type: "application/json" })),
@@ -140,6 +160,7 @@ export class ArweaveUploader implements StorageUploader {
 
     return {
       collectionImageUrl,
+      bannerImageUrl,
       manifestUrl,
       nftMetadataUrls: metadataUrls,
     };

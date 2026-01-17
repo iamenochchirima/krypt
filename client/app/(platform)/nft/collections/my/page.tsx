@@ -12,6 +12,7 @@ import { Loader2, Plus, Settings, ExternalLink, Rocket } from "lucide-react"
 import { toast } from "sonner"
 import Link from "next/link"
 import { Collection } from "@/declarations/registry/registry.did"
+import AuthGuard from "@/components/auth-guard"
 
 type Blockchain = "ICP" | "Solana" | "Ethereum" | "Bitcoin" | "Movement"
 
@@ -38,8 +39,9 @@ export default function MyCollectionsPage() {
       setIsLoading(true)
       const actor = await getRegistryActor(identity)
 
-      const collectionsResult = await actor.get_user_collections(0, 100)
-      setCollections(collectionsResult)
+      const allCollections = await actor.get_user_collections(0, 100)
+      const active = allCollections.filter((c: Collection) => 'Active' in c.status)
+      setCollections(active)
 
       const draftsResult = await actor.get_my_draft_collections()
       console.log({draftsResult})
@@ -64,18 +66,12 @@ export default function MyCollectionsPage() {
   const getStatusLabel = (status: Collection['status']): string => {
     if ('Draft' in status) return 'Draft'
     if ('Active' in status) return 'Active'
-    if ('Minting' in status) return 'Minting'
-    if ('Paused' in status) return 'Paused'
-    if ('Completed' in status) return 'Completed'
     return 'Unknown'
   }
 
   const getStatusVariant = (status: Collection['status']): "default" | "secondary" | "destructive" | "outline" => {
     if ('Draft' in status) return 'secondary'
     if ('Active' in status) return 'default'
-    if ('Minting' in status) return 'default'
-    if ('Paused' in status) return 'outline'
-    if ('Completed' in status) return 'outline'
     return 'secondary'
   }
 
@@ -234,13 +230,16 @@ export default function MyCollectionsPage() {
 
   if (isLoading) {
     return (
-      <div className="container mx-auto py-8 flex items-center justify-center min-h-[400px]">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-      </div>
+      <AuthGuard>
+        <div className="container mx-auto py-8 flex items-center justify-center min-h-[400px]">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </div>
+      </AuthGuard>
     )
   }
 
   return (
+    <AuthGuard>
     <div className="container mx-auto py-8 space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
@@ -305,25 +304,25 @@ export default function MyCollectionsPage() {
         </CardContent>
       </Card>
 
-      {/* Tabs for Deployed vs Drafts */}
-      <Tabs defaultValue="deployed" className="w-full">
+      {/* Tabs for Active vs Drafts */}
+      <Tabs defaultValue="active" className="w-full">
         <TabsList className="grid w-full grid-cols-2 max-w-[400px]">
-          <TabsTrigger value="deployed">
-            Deployed ({filterByBlockchain(collections).length})
+          <TabsTrigger value="active">
+            Active ({filterByBlockchain(collections).length})
           </TabsTrigger>
           <TabsTrigger value="drafts">
             Drafts ({filterByBlockchain(drafts).length})
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="deployed" className="mt-6">
+        <TabsContent value="active" className="mt-6">
           {filterByBlockchain(collections).length === 0 ? (
             <Card>
               <CardContent className="py-12 text-center">
                 <p className="text-muted-foreground mb-4">
-                  You haven't deployed any collections yet
+                  You don't have any active collections yet
                 </p>
-                <Link href="/nft/launchpad/solana">
+                <Link href="/nft/launchpad/create">
                   <Button>
                     <Plus className="h-4 w-4 mr-2" />
                     Create Your First Collection
@@ -357,5 +356,6 @@ export default function MyCollectionsPage() {
         </TabsContent>
       </Tabs>
     </div>
+    </AuthGuard>
   )
 }

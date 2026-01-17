@@ -1,11 +1,37 @@
 export const idlFactory = ({ IDL }) => {
   const InitArgs = IDL.Record({ 'admin' : IDL.Principal });
-  const Result = IDL.Variant({ 'Ok' : IDL.Text, 'Err' : IDL.Text });
+  const Result = IDL.Variant({ 'Ok' : IDL.Nat64, 'Err' : IDL.Text });
+  const Result_1 = IDL.Variant({ 'Ok' : IDL.Text, 'Err' : IDL.Text });
+  const SetFeaturedArgs = IDL.Record({
+    'collection_id' : IDL.Text,
+    'is_featured' : IDL.Bool,
+  });
+  const Result_2 = IDL.Variant({ 'Ok' : IDL.Null, 'Err' : IDL.Text });
+  const SetVerifiedArgs = IDL.Record({
+    'collection_id' : IDL.Text,
+    'is_verified' : IDL.Bool,
+  });
+  const Socials = IDL.Record({
+    'twitter' : IDL.Opt(IDL.Text),
+    'website' : IDL.Opt(IDL.Text),
+    'discord' : IDL.Opt(IDL.Text),
+    'telegram' : IDL.Opt(IDL.Text),
+  });
   const Blockchain = IDL.Variant({
     'ICP' : IDL.Null,
     'Ethereum' : IDL.Null,
     'Solana' : IDL.Null,
     'Movement' : IDL.Null,
+  });
+  const CollectionCategory = IDL.Variant({
+    'Art' : IDL.Null,
+    'PFP' : IDL.Null,
+    'Gaming' : IDL.Null,
+    'Music' : IDL.Null,
+    'Other' : IDL.Null,
+    'Metaverse' : IDL.Null,
+    'Photography' : IDL.Null,
+    'Utility' : IDL.Null,
   });
   const ICPDeploymentStage = IDL.Variant({
     'CanisterDeploying' : IDL.Null,
@@ -19,11 +45,18 @@ export const idlFactory = ({ IDL }) => {
   const EthereumDeploymentStage = IDL.Variant({
     'ContractDeploying' : IDL.Null,
     'Deployed' : IDL.Null,
+    'FilesUploading' : IDL.Null,
   });
   const EthereumCollectionData = IDL.Record({
+    'files_uploaded' : IDL.Bool,
+    'manifest_url' : IDL.Opt(IDL.Text),
+    'mint_price_wei' : IDL.Opt(IDL.Nat64),
     'chain_id' : IDL.Nat64,
     'deployment_stage' : EthereumDeploymentStage,
+    'max_supply' : IDL.Nat64,
+    'chain_name' : IDL.Text,
     'contract_address' : IDL.Opt(IDL.Text),
+    'owner_address' : IDL.Opt(IDL.Text),
   });
   const CandyMachineConfig = IDL.Record({
     'seller_fee_basis_points' : IDL.Nat16,
@@ -71,19 +104,20 @@ export const idlFactory = ({ IDL }) => {
     'metadata' : IDL.Vec(IDL.Tuple(IDL.Text, IDL.Text)),
     'banner_url' : IDL.Opt(IDL.Text),
     'name' : IDL.Text,
+    'tags' : IDL.Opt(IDL.Vec(IDL.Text)),
+    'socials' : IDL.Opt(Socials),
     'description' : IDL.Text,
     'blockchain' : Blockchain,
+    'mint_price' : IDL.Opt(IDL.Nat64),
+    'category' : IDL.Opt(CollectionCategory),
     'chain_data' : ChainData,
     'total_supply' : IDL.Nat64,
     'symbol' : IDL.Text,
     'royalty_bps' : IDL.Nat16,
   });
   const CollectionStatus = IDL.Variant({
-    'Minting' : IDL.Null,
-    'Paused' : IDL.Null,
     'Active' : IDL.Null,
     'Draft' : IDL.Null,
-    'Completed' : IDL.Null,
   });
   const ICPSaleType = IDL.Variant({
     'OpenEdition' : IDL.Null,
@@ -111,7 +145,6 @@ export const idlFactory = ({ IDL }) => {
   });
   const Collection = IDL.Record({
     'id' : IDL.Text,
-    'floor_price' : IDL.Nat64,
     'status' : CollectionStatus,
     'updated_at' : IDL.Nat64,
     'creator' : IDL.Principal,
@@ -119,26 +152,45 @@ export const idlFactory = ({ IDL }) => {
     'image_url' : IDL.Text,
     'metadata' : IDL.Vec(IDL.Tuple(IDL.Text, IDL.Text)),
     'banner_url' : IDL.Opt(IDL.Text),
-    'owner_count' : IDL.Nat32,
     'name' : IDL.Text,
+    'slug' : IDL.Text,
+    'tags' : IDL.Vec(IDL.Text),
+    'socials' : IDL.Opt(Socials),
     'description' : IDL.Text,
     'created_at' : IDL.Nat64,
     'blockchain' : Blockchain,
-    'listed_count' : IDL.Nat32,
-    'total_volume' : IDL.Nat64,
+    'mint_price' : IDL.Opt(IDL.Nat64),
+    'is_verified' : IDL.Bool,
+    'is_featured' : IDL.Bool,
+    'category' : IDL.Opt(CollectionCategory),
     'chain_data' : ChainData,
     'total_supply' : IDL.Nat64,
     'symbol' : IDL.Text,
     'royalty_bps' : IDL.Nat16,
   });
+  const CollectionsResult = IDL.Record({
+    'total' : IDL.Nat64,
+    'collections' : IDL.Vec(Collection),
+  });
   const SetSaleEndedArgs = IDL.Record({
     'collection_id' : IDL.Text,
     'ended' : IDL.Bool,
   });
-  const Result_1 = IDL.Variant({ 'Ok' : IDL.Null, 'Err' : IDL.Text });
+  const UpdateCategoryArgs = IDL.Record({
+    'collection_id' : IDL.Text,
+    'category' : IDL.Opt(CollectionCategory),
+  });
   const UpdateCollectionStatusArgs = IDL.Record({
     'status' : CollectionStatus,
     'collection_id' : IDL.Text,
+  });
+  const UpdateEthereumStageArgs = IDL.Record({
+    'files_uploaded' : IDL.Opt(IDL.Bool),
+    'manifest_url' : IDL.Opt(IDL.Text),
+    'collection_id' : IDL.Text,
+    'stage' : EthereumDeploymentStage,
+    'contract_address' : IDL.Opt(IDL.Text),
+    'owner_address' : IDL.Opt(IDL.Text),
   });
   const UpdateInitialSaleArgs = IDL.Record({
     'initial_sale' : IDL.Opt(InitialSale),
@@ -151,6 +203,14 @@ export const idlFactory = ({ IDL }) => {
     'collection_created' : IDL.Opt(IDL.Bool),
     'stage' : MovementDeploymentStage,
   });
+  const UpdateSlugArgs = IDL.Record({
+    'slug' : IDL.Text,
+    'collection_id' : IDL.Text,
+  });
+  const UpdateSocialsArgs = IDL.Record({
+    'collection_id' : IDL.Text,
+    'socials' : IDL.Opt(Socials),
+  });
   const UpdateSolanaStageArgs = IDL.Record({
     'files_uploaded' : IDL.Opt(IDL.Bool),
     'metadata_created' : IDL.Opt(IDL.Bool),
@@ -162,9 +222,16 @@ export const idlFactory = ({ IDL }) => {
     'candy_machine_address' : IDL.Opt(IDL.Text),
     'candy_machine_authority' : IDL.Opt(IDL.Text),
   });
+  const UpdateTagsArgs = IDL.Record({
+    'tags' : IDL.Vec(IDL.Text),
+    'collection_id' : IDL.Text,
+  });
   return IDL.Service({
-    'admin_remove_collection' : IDL.Func([IDL.Text], [Result], []),
-    'create_collection' : IDL.Func([CreateCollectionArgs], [Result], []),
+    'admin_migrate_collections' : IDL.Func([], [Result], []),
+    'admin_remove_collection' : IDL.Func([IDL.Text], [Result_1], []),
+    'admin_set_featured' : IDL.Func([SetFeaturedArgs], [Result_2], []),
+    'admin_set_verified' : IDL.Func([SetVerifiedArgs], [Result_2], []),
+    'create_collection' : IDL.Func([CreateCollectionArgs], [Result_1], []),
     'get_all_collections' : IDL.Func(
         [IDL.Nat32, IDL.Nat32],
         [IDL.Vec(Collection)],
@@ -176,9 +243,24 @@ export const idlFactory = ({ IDL }) => {
         ['query'],
       ),
     'get_collection' : IDL.Func([IDL.Text], [IDL.Opt(Collection)], ['query']),
+    'get_collection_by_slug' : IDL.Func(
+        [IDL.Text],
+        [IDL.Opt(Collection)],
+        ['query'],
+      ),
     'get_collections_by_blockchain' : IDL.Func(
         [Blockchain, IDL.Nat32, IDL.Nat32],
         [IDL.Vec(Collection)],
+        ['query'],
+      ),
+    'get_collections_by_category' : IDL.Func(
+        [CollectionCategory, IDL.Nat32, IDL.Nat32],
+        [IDL.Vec(Collection)],
+        ['query'],
+      ),
+    'get_collections_paginated' : IDL.Func(
+        [IDL.Nat64, IDL.Nat64],
+        [CollectionsResult],
         ['query'],
       ),
     'get_creator_draft_collections' : IDL.Func(
@@ -191,12 +273,23 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Vec(Collection)],
         ['query'],
       ),
+    'get_featured_collections' : IDL.Func(
+        [IDL.Nat32, IDL.Nat32],
+        [IDL.Vec(Collection)],
+        ['query'],
+      ),
+    'get_latest_collections' : IDL.Func(
+        [IDL.Nat64],
+        [CollectionsResult],
+        ['query'],
+      ),
     'get_live_sales' : IDL.Func(
         [IDL.Nat32, IDL.Nat32],
         [IDL.Vec(Collection)],
         ['query'],
       ),
     'get_my_draft_collections' : IDL.Func([], [IDL.Vec(Collection)], ['query']),
+    'get_total_collections' : IDL.Func([], [IDL.Nat64], ['query']),
     'get_upcoming_sales' : IDL.Func(
         [IDL.Nat32, IDL.Nat32],
         [IDL.Vec(Collection)],
@@ -207,19 +300,33 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Vec(Collection)],
         ['query'],
       ),
-    'set_sale_ended' : IDL.Func([SetSaleEndedArgs], [Result_1], []),
+    'get_verified_collections' : IDL.Func(
+        [IDL.Nat32, IDL.Nat32],
+        [IDL.Vec(Collection)],
+        ['query'],
+      ),
+    'set_sale_ended' : IDL.Func([SetSaleEndedArgs], [Result_2], []),
+    'update_category' : IDL.Func([UpdateCategoryArgs], [Result_2], []),
     'update_collection_status' : IDL.Func(
         [UpdateCollectionStatusArgs],
-        [Result_1],
+        [Result_2],
         [],
       ),
-    'update_initial_sale' : IDL.Func([UpdateInitialSaleArgs], [Result_1], []),
+    'update_ethereum_stage' : IDL.Func(
+        [UpdateEthereumStageArgs],
+        [Result_2],
+        [],
+      ),
+    'update_initial_sale' : IDL.Func([UpdateInitialSaleArgs], [Result_2], []),
     'update_movement_stage' : IDL.Func(
         [UpdateMovementStageArgs],
-        [Result_1],
+        [Result_2],
         [],
       ),
-    'update_solana_stage' : IDL.Func([UpdateSolanaStageArgs], [Result_1], []),
+    'update_slug' : IDL.Func([UpdateSlugArgs], [Result_2], []),
+    'update_socials' : IDL.Func([UpdateSocialsArgs], [Result_2], []),
+    'update_solana_stage' : IDL.Func([UpdateSolanaStageArgs], [Result_2], []),
+    'update_tags' : IDL.Func([UpdateTagsArgs], [Result_2], []),
   });
 };
 export const init = ({ IDL }) => {

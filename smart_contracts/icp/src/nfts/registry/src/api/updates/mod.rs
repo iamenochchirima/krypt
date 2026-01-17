@@ -52,6 +52,20 @@ pub fn update_movement_stage(args: UpdateMovementStageArgs) -> Result<(), String
 }
 
 #[update]
+pub fn update_ethereum_stage(args: UpdateEthereumStageArgs) -> Result<(), String> {
+    let caller = msg_caller();
+
+    if let Some(collection) = state::get_collection(&args.collection_id) {
+        if collection.creator != caller {
+            return Err("Not authorized".to_string());
+        }
+        state::update_ethereum_stage(args)
+    } else {
+        Err("Collection not found".to_string())
+    }
+}
+
+#[update]
 pub fn admin_remove_collection(collection_id: String) -> Result<String, String> {
     let removed = state::remove_collection(&collection_id)?;
     Ok(removed.id)
@@ -81,4 +95,71 @@ pub fn set_sale_ended(args: SetSaleEndedArgs) -> Result<(), String> {
     } else {
         Err("Collection not found".to_string())
     }
+}
+
+#[update]
+pub fn update_socials(args: UpdateSocialsArgs) -> Result<(), String> {
+    let caller = msg_caller();
+    if let Some(collection) = state::get_collection(&args.collection_id) {
+        if collection.creator != caller {
+            return Err("Not authorized".to_string());
+        }
+        state::update_socials(args)
+    } else {
+        Err("Collection not found".to_string())
+    }
+}
+
+#[update]
+pub fn update_category(args: UpdateCategoryArgs) -> Result<(), String> {
+    let caller = msg_caller();
+    if let Some(collection) = state::get_collection(&args.collection_id) {
+        if collection.creator != caller {
+            return Err("Not authorized".to_string());
+        }
+        state::update_category(args)
+    } else {
+        Err("Collection not found".to_string())
+    }
+}
+
+#[update]
+pub fn update_tags(args: UpdateTagsArgs) -> Result<(), String> {
+    let caller = msg_caller();
+    if let Some(collection) = state::get_collection(&args.collection_id) {
+        if collection.creator != caller {
+            return Err("Not authorized".to_string());
+        }
+        state::update_tags(args)
+    } else {
+        Err("Collection not found".to_string())
+    }
+}
+
+#[update]
+pub fn admin_set_verified(args: SetVerifiedArgs) -> Result<(), String> {
+    state::set_verified(args)
+}
+
+#[update]
+pub fn admin_set_featured(args: SetFeaturedArgs) -> Result<(), String> {
+    state::set_featured(args)
+}
+
+#[update]
+pub fn update_slug(args: UpdateSlugArgs) -> Result<(), String> {
+    let caller = msg_caller();
+    if let Some(collection) = state::get_collection(&args.collection_id) {
+        if collection.creator != caller {
+            return Err("Not authorized".to_string());
+        }
+        state::update_slug(args)
+    } else {
+        Err("Collection not found".to_string())
+    }
+}
+
+#[update]
+pub fn admin_migrate_collections() -> Result<u64, String> {
+    state::migrate_collections_v0_to_v1()
 }

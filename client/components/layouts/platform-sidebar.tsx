@@ -23,6 +23,8 @@ import {
   ChevronLeft,
   PanelLeftClose,
   PanelLeft,
+  Heart,
+  Plus,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -53,6 +55,7 @@ const navigationConfig: Record<string, NavSection> = {
       { label: "Discover", href: "/nft/discover", icon: TrendingUp },
       { label: "Collections", href: "/nft/collections", icon: FolderOpen },
       { label: "Launchpad", href: "/nft/launchpad", icon: Rocket },
+      { label: "Watchlist", href: "/nft/watchlist", icon: Heart },
       { label: "My Collections", href: "/nft/collections/my", icon: User },
     ],
   },
@@ -269,6 +272,37 @@ export function PlatformSidebar() {
                   />
                 ))}
               </nav>
+
+              {/* Create Button - Only show in NFT section */}
+              {activeSection.basePath === "/nft" && (
+                <div className={cn("mt-4", collapsed ? "px-1" : "px-2")}>
+                  {collapsed ? (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Link href="/nft/launchpad/create">
+                          <Button
+                            size="icon"
+                            variant="secondary"
+                            className="w-full"
+                          >
+                            <Plus className="h-5 w-5" />
+                          </Button>
+                        </Link>
+                      </TooltipTrigger>
+                      <TooltipContent side="right">
+                        Create
+                      </TooltipContent>
+                    </Tooltip>
+                  ) : (
+                    <Link href="/nft/launchpad/create">
+                      <Button variant="secondary" className="w-full gap-2">
+                        <Plus className="h-4 w-4" />
+                        Create
+                      </Button>
+                    </Link>
+                  )}
+                </div>
+              )}
             </div>
           ) : (
             !collapsed && (

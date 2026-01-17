@@ -2,6 +2,7 @@ export type StorageProvider = "arweave" | "nft-storage"
 
 export interface UploadResult {
   collectionImageUrl: string
+  bannerImageUrl?: string
   manifestUrl: string
   nftMetadataUrls: string[]
 }
@@ -27,6 +28,8 @@ export interface StorageUploader {
       symbol: string
       description: string
       supply: number
-    }
+    },
+    onProgress?: (uploaded: number, total: number) => void,
+    bannerImage?: File
   ): Promise<UploadResult>
 }

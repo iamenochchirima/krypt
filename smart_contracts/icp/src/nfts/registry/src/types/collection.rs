@@ -6,12 +6,18 @@ use std::borrow::Cow;
 use super::blockchain::Blockchain;
 
 #[derive(CandidType, Serialize, Deserialize, Clone, Debug, PartialEq)]
-pub enum CollectionStatus {
+pub enum CollectionStatusV0 {
     Draft,
     Active,
     Paused,
     Minting,
     Completed,
+}
+
+#[derive(CandidType, Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub enum CollectionStatus {
+    Draft,
+    Active,
 }
 
 #[derive(CandidType, Serialize, Deserialize, Clone, Debug)]
@@ -70,10 +76,17 @@ pub struct EthereumCollectionData {
     pub deployment_stage: EthereumDeploymentStage,
     pub contract_address: Option<String>,
     pub chain_id: u64,
+    pub chain_name: String,
+    pub owner_address: Option<String>,
+    pub manifest_url: Option<String>,
+    pub files_uploaded: bool,
+    pub mint_price_wei: Option<u64>,
+    pub max_supply: u64,
 }
 
 #[derive(CandidType, Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub enum EthereumDeploymentStage {
+    FilesUploading,
     ContractDeploying,
     Deployed,
 }
@@ -156,9 +169,30 @@ pub enum MovementSaleType {
     OpenEdition,
 }
 
+#[derive(CandidType, Serialize, Deserialize, Clone, Debug, Default)]
+pub struct Socials {
+    pub website: Option<String>,
+    pub twitter: Option<String>,
+    pub discord: Option<String>,
+    pub telegram: Option<String>,
+}
+
+#[derive(CandidType, Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub enum CollectionCategory {
+    Art,
+    PFP,
+    Gaming,
+    Music,
+    Photography,
+    Utility,
+    Metaverse,
+    Other,
+}
+
 #[derive(CandidType, Serialize, Deserialize, Clone, Debug)]
-pub struct Collection {
+pub struct CollectionV0 {
     pub id: String,
+    pub slug: String,
     pub blockchain: Blockchain,
     pub creator: Principal,
     pub name: String,
@@ -167,15 +201,60 @@ pub struct Collection {
     pub image_url: String,
     pub banner_url: Option<String>,
     pub total_supply: u64,
-    pub floor_price: u64,
-    pub total_volume: u64,
-    pub owner_count: u32,
-    pub listed_count: u32,
     pub royalty_bps: u16,
+    pub mint_price: Option<u64>,
+    pub metadata: Vec<(String, String)>,
+    pub status: CollectionStatusV0,
+    pub chain_data: ChainData,
+    pub initial_sale: Option<InitialSale>,
+    pub socials: Option<Socials>,
+    pub category: Option<CollectionCategory>,
+    pub tags: Vec<String>,
+    pub is_verified: bool,
+    pub is_featured: bool,
+    pub created_at: u64,
+    pub updated_at: u64,
+}
+
+impl Storable for CollectionV0 {
+    fn to_bytes(&self) -> Cow<[u8]> {
+        Cow::Owned(candid::encode_one(self).unwrap())
+    }
+
+    fn from_bytes(bytes: Cow<[u8]>) -> Self {
+        candid::decode_one(&bytes).unwrap()
+    }
+
+    fn into_bytes(self) -> Vec<u8> {
+        candid::encode_one(&self).unwrap()
+    }
+
+    const BOUND: Bound = Bound::Unbounded;
+}
+
+#[derive(CandidType, Serialize, Deserialize, Clone, Debug)]
+pub struct Collection {
+    pub id: String,
+    pub slug: String,
+    pub blockchain: Blockchain,
+    pub creator: Principal,
+    pub name: String,
+    pub symbol: String,
+    pub description: String,
+    pub image_url: String,
+    pub banner_url: Option<String>,
+    pub total_supply: u64,
+    pub royalty_bps: u16,
+    pub mint_price: Option<u64>,
     pub metadata: Vec<(String, String)>,
     pub status: CollectionStatus,
     pub chain_data: ChainData,
     pub initial_sale: Option<InitialSale>,
+    pub socials: Option<Socials>,
+    pub category: Option<CollectionCategory>,
+    pub tags: Vec<String>,
+    pub is_verified: bool,
+    pub is_featured: bool,
     pub created_at: u64,
     pub updated_at: u64,
 }
@@ -193,10 +272,7 @@ impl Storable for Collection {
         candid::encode_one(&self).unwrap()
     }
 
-    const BOUND: Bound = Bound::Bounded {
-        max_size: 2048,
-        is_fixed_size: false,
-    };
+    const BOUND: Bound = Bound::Unbounded;
 }
 
 #[derive(CandidType, Serialize, Deserialize, Clone, Debug)]
@@ -209,8 +285,12 @@ pub struct CreateCollectionArgs {
     pub banner_url: Option<String>,
     pub total_supply: u64,
     pub royalty_bps: u16,
+    pub mint_price: Option<u64>,
     pub metadata: Vec<(String, String)>,
     pub chain_data: ChainData,
+    pub socials: Option<Socials>,
+    pub category: Option<CollectionCategory>,
+    pub tags: Option<Vec<String>>,
 }
 
 #[derive(CandidType, Serialize, Deserialize, Clone, Debug)]
@@ -250,6 +330,16 @@ pub struct UpdateMovementStageArgs {
 }
 
 #[derive(CandidType, Serialize, Deserialize, Clone, Debug)]
+pub struct UpdateEthereumStageArgs {
+    pub collection_id: String,
+    pub stage: EthereumDeploymentStage,
+    pub contract_address: Option<String>,
+    pub owner_address: Option<String>,
+    pub manifest_url: Option<String>,
+    pub files_uploaded: Option<bool>,
+}
+
+#[derive(CandidType, Serialize, Deserialize, Clone, Debug)]
 pub struct UpdateInitialSaleArgs {
     pub collection_id: String,
     pub initial_sale: Option<InitialSale>,
@@ -259,4 +349,46 @@ pub struct UpdateInitialSaleArgs {
 pub struct SetSaleEndedArgs {
     pub collection_id: String,
     pub ended: bool,
+}
+
+#[derive(CandidType, Serialize, Deserialize, Clone, Debug)]
+pub struct UpdateSocialsArgs {
+    pub collection_id: String,
+    pub socials: Option<Socials>,
+}
+
+#[derive(CandidType, Serialize, Deserialize, Clone, Debug)]
+pub struct UpdateCategoryArgs {
+    pub collection_id: String,
+    pub category: Option<CollectionCategory>,
+}
+
+#[derive(CandidType, Serialize, Deserialize, Clone, Debug)]
+pub struct UpdateTagsArgs {
+    pub collection_id: String,
+    pub tags: Vec<String>,
+}
+
+#[derive(CandidType, Serialize, Deserialize, Clone, Debug)]
+pub struct SetVerifiedArgs {
+    pub collection_id: String,
+    pub is_verified: bool,
+}
+
+#[derive(CandidType, Serialize, Deserialize, Clone, Debug)]
+pub struct SetFeaturedArgs {
+    pub collection_id: String,
+    pub is_featured: bool,
+}
+
+#[derive(CandidType, Serialize, Deserialize, Clone, Debug)]
+pub struct UpdateSlugArgs {
+    pub collection_id: String,
+    pub slug: String,
+}
+
+#[derive(CandidType, Serialize, Deserialize, Clone, Debug)]
+pub struct CollectionsResult {
+    pub collections: Vec<Collection>,
+    pub total: u64,
 }

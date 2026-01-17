@@ -12,6 +12,12 @@ interface DraftDB extends DBSchema {
         size: number
         data: ArrayBuffer
       }
+      bannerImage?: {
+        name: string
+        type: string
+        size: number
+        data: ArrayBuffer
+      }
       nftAssets?: Array<{
         name: string
         type: string
@@ -43,6 +49,7 @@ export async function saveDraft(
   draftId: string,
   formData: any,
   collectionImage?: File,
+  bannerImage?: File,
   nftAssets?: FileList | File[]
 ) {
   const db = await getDB()
@@ -62,6 +69,16 @@ export async function saveDraft(
       name: collectionImage.name,
       type: collectionImage.type,
       size: collectionImage.size,
+      data: buffer,
+    }
+  }
+
+  if (bannerImage) {
+    const buffer = await bannerImage.arrayBuffer()
+    draft.bannerImage = {
+      name: bannerImage.name,
+      type: bannerImage.type,
+      size: bannerImage.size,
       data: buffer,
     }
   }
@@ -95,6 +112,13 @@ export async function loadDraft(draftId: string) {
     const blob = new Blob([draft.collectionImage.data], { type: draft.collectionImage.type })
     result.collectionImage = new File([blob], draft.collectionImage.name, {
       type: draft.collectionImage.type,
+    })
+  }
+
+  if (draft.bannerImage) {
+    const blob = new Blob([draft.bannerImage.data], { type: draft.bannerImage.type })
+    result.bannerImage = new File([blob], draft.bannerImage.name, {
+      type: draft.bannerImage.type,
     })
   }
 

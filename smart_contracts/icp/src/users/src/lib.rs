@@ -1,23 +1,31 @@
-extern crate serde;
-use candid::Principal;
-use types::user::{User, AddUserArgs};
-use ic_stable_structures::memory_manager::{ MemoryId, MemoryManager, VirtualMemory };
-use ic_stable_structures::{ DefaultMemoryImpl, StableBTreeMap };
-use std::cell::RefCell;
+use candid::{CandidType, Deserialize, Principal};
+use serde::Serialize;
 
 pub mod api;
+pub mod guards;
+pub mod state;
 
-type Memory = VirtualMemory<DefaultMemoryImpl>;
+pub use state::config::Config;
+pub use types::{
+    AddAdminArgs, AdminUser, BannedUser, BanUserArgs, Permission,
+    UpdateAdminPermissionsArgs, UpdateAdminRoleArgs,
+};
+pub use types::user::{AddUserArgs, User};
 
-thread_local! {
-    static MEMORY_MANAGER: RefCell<MemoryManager<DefaultMemoryImpl>> = RefCell::new(
-        MemoryManager::init(DefaultMemoryImpl::default())
-    );
+#[derive(CandidType, Serialize, Deserialize, Clone, Debug)]
+pub struct InitArgs {
+    pub super_admin: Principal,
+}
 
-    static USERS: RefCell<StableBTreeMap<Principal, User, Memory>> = RefCell::new(
-        StableBTreeMap::init(MEMORY_MANAGER.with(|m| m.borrow().get(MemoryId::new(6))))
-    );
+#[ic_cdk::init]
+fn init(args: InitArgs) {
+    state::init_config(args.super_admin);
+    ic_cdk::println!("Users canister initialized with super admin: {}", args.super_admin);
+}
 
+#[ic_cdk::post_upgrade]
+fn post_upgrade() {
+    ic_cdk::println!("Users canister upgraded");
 }
 
 ic_cdk::export_candid!();

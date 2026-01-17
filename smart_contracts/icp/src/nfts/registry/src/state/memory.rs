@@ -4,11 +4,14 @@ use std::cell::RefCell;
 
 pub type Memory = VirtualMemory<DefaultMemoryImpl>;
 
-pub const COLLECTIONS_MEMORY_ID: MemoryId = MemoryId::new(5);
-pub const CONFIG_MEMORY_ID: MemoryId = MemoryId::new(4);
+pub const COLLECTIONS_V0_MEMORY_ID: MemoryId = MemoryId::new(0);
+pub const COLLECTIONS_INDEX_MEMORY_ID: MemoryId = MemoryId::new(1);
+pub const COLLECTIONS_INDEX_DATA_MEMORY_ID: MemoryId = MemoryId::new(2);
+pub const CONFIG_MEMORY_ID: MemoryId = MemoryId::new(3);
+pub const COLLECTIONS_MEMORY_ID: MemoryId = MemoryId::new(4);
 
 thread_local! {
-    static MEMORY_MANAGER: RefCell<MemoryManager<DefaultMemoryImpl>> =
+    pub static MEMORY_MANAGER: RefCell<MemoryManager<DefaultMemoryImpl>> =
         RefCell::new(MemoryManager::init(DefaultMemoryImpl::default()));
 }
 

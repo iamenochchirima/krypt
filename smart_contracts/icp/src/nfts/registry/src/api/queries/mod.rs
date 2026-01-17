@@ -57,3 +57,40 @@ pub fn get_live_sales(page: u32, limit: u32) -> Vec<Collection> {
 pub fn get_ended_sales(page: u32, limit: u32) -> Vec<Collection> {
     state::get_ended_sales(page, limit)
 }
+
+#[query]
+pub fn get_featured_collections(page: u32, limit: u32) -> Vec<Collection> {
+    state::get_featured_collections(page, limit)
+}
+
+#[query]
+pub fn get_verified_collections(page: u32, limit: u32) -> Vec<Collection> {
+    state::get_verified_collections(page, limit)
+}
+
+#[query]
+pub fn get_collections_by_category(category: CollectionCategory, page: u32, limit: u32) -> Vec<Collection> {
+    state::get_collections_by_category(&category, page, limit)
+}
+
+#[query]
+pub fn get_collection_by_slug(slug: String) -> Option<Collection> {
+    state::get_collection_by_slug(&slug)
+}
+
+#[query]
+pub fn get_total_collections() -> u64 {
+    state::get_total_collections()
+}
+
+#[query]
+pub fn get_collections_paginated(start: u64, length: u64) -> CollectionsResult {
+    let (collections, total) = state::get_collections_paginated(start, length);
+    CollectionsResult { collections, total }
+}
+
+#[query]
+pub fn get_latest_collections(length: u64) -> CollectionsResult {
+    let (collections, total) = state::get_latest_collections(length);
+    CollectionsResult { collections, total }
+}

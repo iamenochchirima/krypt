@@ -14,7 +14,6 @@ type ChainData = variant {
 };
 type Collection = record {
   id : text;
-  floor_price : nat64;
   status : CollectionStatus;
   updated_at : nat64;
   creator : principal;
@@ -22,37 +21,66 @@ type Collection = record {
   image_url : text;
   metadata : vec record { text; text };
   banner_url : opt text;
-  owner_count : nat32;
   name : text;
+  slug : text;
+  tags : vec text;
+  socials : opt Socials;
   description : text;
   created_at : nat64;
   blockchain : Blockchain;
-  listed_count : nat32;
-  total_volume : nat64;
+  mint_price : opt nat64;
+  is_verified : bool;
+  is_featured : bool;
+  category : opt CollectionCategory;
   chain_data : ChainData;
   total_supply : nat64;
   symbol : text;
   royalty_bps : nat16;
 };
-type CollectionStatus = variant { Minting; Paused; Active; Draft; Completed };
+type CollectionCategory = variant {
+  Art;
+  PFP;
+  Gaming;
+  Music;
+  Other;
+  Metaverse;
+  Photography;
+  Utility;
+};
+type CollectionStatus = variant { Active; Draft };
+type CollectionsResult = record { total : nat64; collections : vec Collection };
 type CreateCollectionArgs = record {
   image_url : text;
   metadata : vec record { text; text };
   banner_url : opt text;
   name : text;
+  tags : opt vec text;
+  socials : opt Socials;
   description : text;
   blockchain : Blockchain;
+  mint_price : opt nat64;
+  category : opt CollectionCategory;
   chain_data : ChainData;
   total_supply : nat64;
   symbol : text;
   royalty_bps : nat16;
 };
 type EthereumCollectionData = record {
+  files_uploaded : bool;
+  manifest_url : opt text;
+  mint_price_wei : opt nat64;
   chain_id : nat64;
   deployment_stage : EthereumDeploymentStage;
+  max_supply : nat64;
+  chain_name : text;
   contract_address : opt text;
+  owner_address : opt text;
 };
-type EthereumDeploymentStage = variant { ContractDeploying; Deployed };
+type EthereumDeploymentStage = variant {
+  ContractDeploying;
+  Deployed;
+  FilesUploading;
+};
 type ICPCollectionData = record {
   canister_id : opt principal;
   deployment_stage : ICPDeploymentStage;
@@ -89,9 +117,18 @@ type MovementDeploymentStage = variant {
   FilesUploading;
   CollectionDeploying;
 };
-type Result = variant { Ok : text; Err : text };
-type Result_1 = variant { Ok; Err : text };
+type Result = variant { Ok : nat64; Err : text };
+type Result_1 = variant { Ok : text; Err : text };
+type Result_2 = variant { Ok; Err : text };
+type SetFeaturedArgs = record { collection_id : text; is_featured : bool };
 type SetSaleEndedArgs = record { collection_id : text; ended : bool };
+type SetVerifiedArgs = record { collection_id : text; is_verified : bool };
+type Socials = record {
+  twitter : opt text;
+  website : opt text;
+  discord : opt text;
+  telegram : opt text;
+};
 type SolanaCollectionData = record {
   files_uploaded : bool;
   metadata_created : bool;
@@ -111,9 +148,21 @@ type SolanaDeploymentStage = variant {
 };
 type SolanaSaleConfig = record { sale_type : SolanaSaleType };
 type SolanaSaleType = variant { OpenEdition; FixedPrice; DutchAuction };
+type UpdateCategoryArgs = record {
+  collection_id : text;
+  category : opt CollectionCategory;
+};
 type UpdateCollectionStatusArgs = record {
   status : CollectionStatus;
   collection_id : text;
+};
+type UpdateEthereumStageArgs = record {
+  files_uploaded : opt bool;
+  manifest_url : opt text;
+  collection_id : text;
+  stage : EthereumDeploymentStage;
+  contract_address : opt text;
+  owner_address : opt text;
 };
 type UpdateInitialSaleArgs = record {
   initial_sale : opt InitialSale;
@@ -126,6 +175,8 @@ type UpdateMovementStageArgs = record {
   collection_created : opt bool;
   stage : MovementDeploymentStage;
 };
+type UpdateSlugArgs = record { slug : text; collection_id : text };
+type UpdateSocialsArgs = record { collection_id : text; socials : opt Socials };
 type UpdateSolanaStageArgs = record {
   files_uploaded : opt bool;
   metadata_created : opt bool;
@@ -137,24 +188,42 @@ type UpdateSolanaStageArgs = record {
   candy_machine_address : opt text;
   candy_machine_authority : opt text;
 };
+type UpdateTagsArgs = record { tags : vec text; collection_id : text };
 service : (InitArgs) -> {
-  admin_remove_collection : (text) -> (Result);
-  create_collection : (CreateCollectionArgs) -> (Result);
+  admin_migrate_collections : () -> (Result);
+  admin_remove_collection : (text) -> (Result_1);
+  admin_set_featured : (SetFeaturedArgs) -> (Result_2);
+  admin_set_verified : (SetVerifiedArgs) -> (Result_2);
+  create_collection : (CreateCollectionArgs) -> (Result_1);
   get_all_collections : (nat32, nat32) -> (vec Collection) query;
   get_all_draft_collections : (nat32, nat32) -> (vec Collection) query;
   get_collection : (text) -> (opt Collection) query;
+  get_collection_by_slug : (text) -> (opt Collection) query;
   get_collections_by_blockchain : (Blockchain, nat32, nat32) -> (
       vec Collection,
     ) query;
+  get_collections_by_category : (CollectionCategory, nat32, nat32) -> (
+      vec Collection,
+    ) query;
+  get_collections_paginated : (nat64, nat64) -> (CollectionsResult) query;
   get_creator_draft_collections : (principal) -> (vec Collection) query;
   get_ended_sales : (nat32, nat32) -> (vec Collection) query;
+  get_featured_collections : (nat32, nat32) -> (vec Collection) query;
+  get_latest_collections : (nat64) -> (CollectionsResult) query;
   get_live_sales : (nat32, nat32) -> (vec Collection) query;
   get_my_draft_collections : () -> (vec Collection) query;
+  get_total_collections : () -> (nat64) query;
   get_upcoming_sales : (nat32, nat32) -> (vec Collection) query;
   get_user_collections : (nat32, nat32) -> (vec Collection) query;
-  set_sale_ended : (SetSaleEndedArgs) -> (Result_1);
-  update_collection_status : (UpdateCollectionStatusArgs) -> (Result_1);
-  update_initial_sale : (UpdateInitialSaleArgs) -> (Result_1);
-  update_movement_stage : (UpdateMovementStageArgs) -> (Result_1);
-  update_solana_stage : (UpdateSolanaStageArgs) -> (Result_1);
+  get_verified_collections : (nat32, nat32) -> (vec Collection) query;
+  set_sale_ended : (SetSaleEndedArgs) -> (Result_2);
+  update_category : (UpdateCategoryArgs) -> (Result_2);
+  update_collection_status : (UpdateCollectionStatusArgs) -> (Result_2);
+  update_ethereum_stage : (UpdateEthereumStageArgs) -> (Result_2);
+  update_initial_sale : (UpdateInitialSaleArgs) -> (Result_2);
+  update_movement_stage : (UpdateMovementStageArgs) -> (Result_2);
+  update_slug : (UpdateSlugArgs) -> (Result_2);
+  update_socials : (UpdateSocialsArgs) -> (Result_2);
+  update_solana_stage : (UpdateSolanaStageArgs) -> (Result_2);
+  update_tags : (UpdateTagsArgs) -> (Result_2);
 }

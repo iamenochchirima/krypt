@@ -1,3 +1,9 @@
+type AddAdminArgs = record {
+  "principal" : principal;
+  username : text;
+  image_url : opt text;
+  role : AdminRole;
+};
 type AddUserArgs = record {
   username : text;
   image_url : opt text;
@@ -7,11 +13,54 @@ type AddUserArgs = record {
   referral_source : opt text;
   chain_data : ChainData;
 };
+type AdminRole = variant { Support; SuperAdmin; Admin; Moderator };
+type AdminStatus = variant { Active; Suspended };
+type AdminUser = record {
+  status : AdminStatus;
+  permissions : vec Permission;
+  updated_at : nat64;
+  "principal" : principal;
+  username : text;
+  image_url : opt text;
+  role : AdminRole;
+  added_by : principal;
+  created_at : nat64;
+};
+type BanUserArgs = record { "principal" : principal; reason : text };
+type BannedUser = record {
+  "principal" : principal;
+  banned_at : nat64;
+  banned_by : principal;
+  reason : text;
+};
 type Chain = variant { ICP; Ethereum; Solana; Bitcoin; Other : text };
 type ChainData = record { chain : Chain; wallet_address : text; wallet : text };
+type Config = record {
+  platform_name : text;
+  initialized : bool;
+  super_admin : principal;
+};
+type InitArgs = record { super_admin : principal };
 type Interest = record { value : text };
+type Permission = variant {
+  ApproveCollections;
+  ManageAdmins;
+  BanUsers;
+  RemoveCollections;
+  ViewAdmins;
+  VerifyCollections;
+  FeatureCollections;
+  ManagePlatformConfig;
+};
 type Result = variant { Ok; Err : text };
-type Result_1 = variant { Ok : User; Err : text };
+type Result_1 = variant { Ok : vec AdminUser; Err : text };
+type Result_2 = variant { Ok : vec BannedUser; Err : text };
+type Result_3 = variant { Ok : User; Err : text };
+type UpdateAdminPermissionsArgs = record {
+  permissions : vec Permission;
+  "principal" : principal;
+};
+type UpdateAdminRoleArgs = record { "principal" : principal; role : AdminRole };
 type User = record {
   "principal" : principal;
   username : text;
@@ -23,10 +72,35 @@ type User = record {
   referral_source : opt text;
   chain_data : ChainData;
 };
-service : {
+service : (InitArgs) -> {
+  add_admin : (AddAdminArgs) -> (Result);
   add_user : (AddUserArgs) -> (Result);
-  get_user : () -> (Result_1) query;
-  get_users : () -> (vec User) query;
+  ban_user : (BanUserArgs) -> (Result);
+  get_admin : (principal) -> (opt AdminUser) query;
+  get_all_admins : () -> (Result_1) query;
+  get_all_banned_users : () -> (Result_2) query;
+  get_all_users : () -> (vec User) query;
+  get_banned_user : (principal) -> (opt BannedUser) query;
+  get_config : () -> (Config) query;
+  get_latest_users : (nat64) -> (vec User, nat64) query;
+  get_super_admin : () -> (principal) query;
+  get_total_users : () -> (nat64) query;
+  get_user : () -> (Result_3) query;
+  get_user_by_principal : (principal) -> (Result_3) query;
+  get_users_paginated : (nat64, nat64) -> (vec User, nat64) query;
+  has_permission : (principal, Permission) -> (bool) query;
+  is_admin : (principal) -> (bool) query;
+  is_banned : (principal) -> (bool) query;
   is_email_in_use : (text) -> (bool) query;
+  is_super_admin : (principal) -> (bool) query;
   is_username_available : (text) -> (bool) query;
+  reactivate_admin : (principal) -> (Result);
+  remove_admin : (principal) -> (Result);
+  suspend_admin : (principal) -> (Result);
+  transfer_super_admin : (principal) -> (Result);
+  unban_user : (principal) -> (Result);
+  update_admin_permissions : (UpdateAdminPermissionsArgs) -> (Result);
+  update_admin_role : (UpdateAdminRoleArgs) -> (Result);
+  update_platform_name : (text) -> (Result);
+  user_exists : (principal) -> (bool) query;
 }
