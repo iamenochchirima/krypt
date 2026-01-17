@@ -27,6 +27,9 @@
       ],
       "@client/*": [
         "../client/*"
+      ],
+      "@declarations/*": [
+        "./declarations/*"
       ]
     },
     "target": "ES2017"

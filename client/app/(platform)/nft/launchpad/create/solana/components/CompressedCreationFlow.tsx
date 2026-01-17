@@ -10,8 +10,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Upload, CheckCircle, Rocket, Check, Clock, Loader2, ExternalLink, Globe, Twitter, MessageCircle, Send, ArrowLeft, TreePine, AlertCircle } from "lucide-react"
-import { saveDraft, loadDraft } from "@/lib/storage/draftStorage"
+import { Upload, CheckCircle, Rocket, Check, Clock, Loader2, ExternalLink, Globe, Twitter, MessageCircle, Send, ArrowLeft, TreePine, AlertCircle, Info } from "lucide-react"
+import { saveDraft, loadDraft, deleteDraft } from "@/lib/storage/draftStorage"
 import { useDebounce } from "@/hooks/useDebounce"
 import { useAuth } from "@/providers/auth-context"
 import { getRegistryActor } from "@/providers/actors/marketplace"
@@ -206,8 +206,10 @@ export default function CompressedCreationFlow({ onBack }: CompressedCreationFlo
           description: formData.description,
           royaltyBps: parseInt(formData.royaltyBps),
         },
-        wallet,
-        bannerImage || undefined
+        undefined,
+        storageProvider === "nft-storage" ? process.env.NEXT_PUBLIC_PINATA_JWT : undefined,
+        bannerImage || undefined,
+        wallet
       )
 
       const updatedFormData = {
@@ -234,15 +236,16 @@ export default function CompressedCreationFlow({ onBack }: CompressedCreationFlo
   }
 
   const handleNext = async () => {
-    if (currentStep === 3 && !formData.manifestUrl) {
+    let manifestUrl = formData.manifestUrl
+    if (currentStep === 3 && !manifestUrl) {
       try {
-        await handleStorageUpload()
+        manifestUrl = await handleStorageUpload()
       } catch (error) {
         return
       }
     }
 
-    if (currentStep === 3 && formData.manifestUrl && !formData.canisterRecordId) {
+    if (currentStep === 3 && manifestUrl && !formData.canisterRecordId) {
       try {
         setIsUploading(true)
         setUploadProgress("Creating collection record...")
@@ -281,7 +284,7 @@ export default function CompressedCreationFlow({ onBack }: CompressedCreationFlo
           chain_data: {
             Solana: {
               Compressed: {
-                deployment_stage: { FilesUploaded: null },
+                deployment_stage: { FilesUploading: null },
                 collection_mint: [],
                 merkle_tree_address: [],
                 manifest_url: [formData.manifestUrl],
@@ -409,28 +412,43 @@ export default function CompressedCreationFlow({ onBack }: CompressedCreationFlo
 
       toast.success("All NFTs minted!")
 
-      setDeploymentStep("Updating registry...")
-
-      const updateResult = await registryActor.update_solana_stage({
-        collection_id: formData.canisterRecordId!,
-        stage: { Deployed: null },
-        collection_address: [collectionMintSigner.publicKey.toString()],
-        candy_machine_address: [merkleTreeSigner.publicKey.toString()],
-        manifest_url: [],
-        authority: [publicKey.toString()],
-      })
-
-      if ('Err' in updateResult) {
-        console.error("Failed to update registry:", updateResult.Err)
-      }
-
-      setFormData(prev => ({
-        ...prev,
+      const updatedFormData = {
+        ...formData,
         collectionMintAddress: collectionMintSigner.publicKey.toString(),
         merkleTreeAddress: merkleTreeSigner.publicKey.toString(),
-      }))
+      }
+      setFormData(updatedFormData)
+      await saveDraft(draftId, updatedFormData, collectionImage || undefined, bannerImage || undefined, nftAssets || undefined)
 
-      toast.success("Collection deployed successfully!")
+      toast.success("Collection deployed on-chain!")
+
+      setDeploymentStep("Updating registry...")
+      try {
+        const updateResult = await registryActor.update_solana_stage({
+          collection_id: formData.canisterRecordId!,
+          update_data: {
+            Compressed: {
+              stage: { Deployed: null },
+              collection_mint: [collectionMintSigner.publicKey.toString()],
+              merkle_tree_address: [merkleTreeSigner.publicKey.toString()],
+              manifest_url: [],
+              authority: [publicKey.toString()],
+            }
+          },
+        })
+
+        if ('Err' in updateResult) {
+          console.error("Failed to update registry:", updateResult.Err)
+          toast.error("Registry update failed", { description: "Collection deployed but registry not updated." })
+        } else {
+          await deleteDraft(draftId)
+          toast.success("Collection deployed successfully!")
+        }
+      } catch (registryError) {
+        console.error('Registry update error:', registryError)
+        toast.error("Registry update failed", { description: "Collection deployed but registry not updated." })
+      }
+
       setDeploymentStep("Deployment complete!")
       setCurrentStep(4)
 
@@ -788,16 +806,74 @@ export default function CompressedCreationFlow({ onBack }: CompressedCreationFlo
                   </div>
                 </div>
 
+                {formData.manifestUrl && (
+                  <div className="bg-green-50 dark:bg-green-950/20 p-4 rounded-lg">
+                    <div className="flex items-start gap-3">
+                      <CheckCircle className="h-5 w-5 text-green-600 mt-0.5 flex-shrink-0" />
+                      <div className="text-sm">
+                        <div className="font-medium text-green-900 dark:text-green-100 mb-1">
+                          Files Already Uploaded
+                        </div>
+                        <div className="text-green-700 dark:text-green-200 mb-2">
+                          Your collection files have been uploaded. You can proceed to the next step or re-upload if needed.
+                        </div>
+                        <a
+                          href={formData.manifestUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs text-green-600 hover:underline break-all"
+                        >
+                          View Manifest
+                        </a>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {isUploading && uploadProgress && (
+                  <div className="bg-green-50 dark:bg-green-950/20 p-4 rounded-lg">
+                    <div className="flex items-center gap-3">
+                      <Loader2 className="h-5 w-5 text-green-600 animate-spin" />
+                      <div className="text-sm font-medium text-green-900 dark:text-green-100">
+                        {uploadProgress}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 <div className="flex justify-between">
-                  <Button variant="outline" onClick={() => setCurrentStep(2)}>
+                  <Button variant="outline" onClick={() => setCurrentStep(2)} disabled={isUploading}>
                     Back
                   </Button>
-                  <Button
-                    onClick={() => setCurrentStep(4)}
-                    disabled={!validateStep(3)}
-                  >
-                    Continue to Deploy
-                  </Button>
+                  <div className="flex gap-2">
+                    {formData.manifestUrl && (
+                      <Button onClick={handleNext} disabled={isUploading}>
+                        Next
+                      </Button>
+                    )}
+                    <Button
+                      onClick={formData.manifestUrl ? handleStorageUpload : handleNext}
+                      disabled={isUploading || !collectionImage || !nftAssets}
+                      variant={formData.manifestUrl ? "outline" : "default"}
+                    >
+                      {isUploading ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Uploading...
+                        </>
+                      ) : formData.manifestUrl ? (
+                        <>
+                          <Upload className="mr-2 h-4 w-4" />
+                          Re-upload
+                        </>
+                      ) : (
+                        <>
+                          <Upload className="mr-2 h-4 w-4" />
+                          Upload
+                        </>
+                      )}
+                    </Button>
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -860,7 +936,7 @@ export default function CompressedCreationFlow({ onBack }: CompressedCreationFlo
                         <span className="text-muted-foreground">Symbol:</span>
                         <span>{formData.symbol}</span>
                         <span className="text-muted-foreground">NFTs to mint:</span>
-                        <span>{nftAssets?.length || 0}</span>
+                        <span>{formData.nftMetadataUrls?.length || nftAssets?.length || 0}</span>
                         <span className="text-muted-foreground">Tree Size:</span>
                         <span className="capitalize">{formData.treeSize}</span>
                         <span className="text-muted-foreground">Tree Cost:</span>
@@ -868,6 +944,30 @@ export default function CompressedCreationFlow({ onBack }: CompressedCreationFlo
                         <span className="text-muted-foreground">Royalty:</span>
                         <span>{parseInt(formData.royaltyBps) / 100}%</span>
                       </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <CheckCircle className="h-4 w-4 text-green-600" />
+                        <span className="text-sm">Files uploaded to storage</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <CheckCircle className="h-4 w-4 text-green-600" />
+                        <span className="text-sm">Collection record created</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {isDeploying ? (
+                          <Loader2 className="h-4 w-4 animate-spin text-green-600" />
+                        ) : (
+                          <div className="h-4 w-4 rounded-full border-2 border-green-600" />
+                        )}
+                        <span className="text-sm font-medium">
+                          {isDeploying ? deploymentStep : "Deploy to Solana"}
+                        </span>
+                      </div>
+                      {isDeploying && mintProgress.total > 0 && (
+                        <Progress value={(mintProgress.current / mintProgress.total) * 100} className="h-2" />
+                      )}
                     </div>
 
                     <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
@@ -880,15 +980,19 @@ export default function CompressedCreationFlow({ onBack }: CompressedCreationFlo
                       </div>
                     </div>
 
-                    {deploymentStep && (
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-2 text-sm">
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                          <span>{deploymentStep}</span>
+                    {!connected && (
+                      <div className="bg-yellow-50 dark:bg-yellow-950/20 p-4 rounded-lg">
+                        <div className="flex items-start gap-3">
+                          <Info className="h-5 w-5 text-yellow-600 mt-0.5 flex-shrink-0" />
+                          <div className="text-sm">
+                            <div className="font-medium text-yellow-900 dark:text-yellow-100 mb-1">
+                              Wallet Not Connected
+                            </div>
+                            <div className="text-yellow-700 dark:text-yellow-200">
+                              Please connect your Solana wallet to deploy
+                            </div>
+                          </div>
                         </div>
-                        {mintProgress.total > 0 && (
-                          <Progress value={(mintProgress.current / mintProgress.total) * 100} className="h-2" />
-                        )}
                       </div>
                     )}
 

@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { useSearchParams } from "next/navigation"
 import AuthGuard from "@/components/auth-guard"
 import StandardSelector, { type SolanaNftStandard } from "./components/StandardSelector"
 import LegacyCreationFlow from "./components/LegacyCreationFlow"
@@ -8,7 +9,9 @@ import CoreCreationFlow from "./components/CoreCreationFlow"
 import CompressedCreationFlow from "./components/CompressedCreationFlow"
 
 export default function CreateSolanaCollectionPage() {
-  const [selectedStandard, setSelectedStandard] = useState<SolanaNftStandard | null>(null)
+  const searchParams = useSearchParams()
+  const typeParam = searchParams.get('type') as SolanaNftStandard | null
+  const [selectedStandard, setSelectedStandard] = useState<SolanaNftStandard | null>(typeParam)
 
   return (
     <AuthGuard>

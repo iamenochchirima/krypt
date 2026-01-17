@@ -52,12 +52,13 @@ export class ArweaveUploader implements StorageUploader {
 
   async uploadCollection(
     collectionImage: File,
-    nftAssets: FileList,
+    nftAssets: File[] | FileList,
     collectionData: {
       name: string;
       symbol: string;
       description: string;
-      supply: number;
+      supply?: number;
+      royaltyBps?: number;
     },
     onProgress?: (uploaded: number, total: number) => void,
     bannerImage?: File
@@ -95,7 +96,7 @@ export class ArweaveUploader implements StorageUploader {
 
     const nftImageUrls: string[] = [];
     for (let i = 0; i < nftAssets.length; i++) {
-      const file = this.ensureFile(nftAssets.item(i), `nftAsset[${i}]`);
+      const file = this.ensureFile(nftAssets[i], `nftAsset[${i}]`);
       const receipt = await this.uploader.upload(await this.fileToBuffer(file), {
         tags: [
           { name: "Content-Type", value: file.type || "image/png" },
@@ -111,7 +112,7 @@ export class ArweaveUploader implements StorageUploader {
 
     const metadataUrls: string[] = [];
     for (let i = 0; i < nftImageUrls.length; i++) {
-      const srcFile = this.ensureFile(nftAssets.item(i), `nftAsset[${i}]`);
+      const srcFile = this.ensureFile(nftAssets[i], `nftAsset[${i}]`);
 
       const metadata: NFTMetadata = {
         name: `${collectionData.name} #${i + 1}`,

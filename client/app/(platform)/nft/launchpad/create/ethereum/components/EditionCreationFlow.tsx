@@ -11,7 +11,7 @@ import { Progress } from "@/components/ui/progress"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Upload, Eye, CheckCircle, Info, Rocket, Check, Clock, Loader2, ExternalLink, Globe, Twitter, MessageCircle, Send, ArrowLeft, Copy } from "lucide-react"
-import { saveDraft, loadDraft } from "@/lib/storage/draftStorage"
+import { saveDraft, loadDraft, deleteDraft } from "@/lib/storage/draftStorage"
 import { useDebounce } from "@/hooks/useDebounce"
 import { useAuth } from "@/providers/auth-context"
 import { getRegistryActor } from "@/providers/actors/marketplace"
@@ -110,6 +110,7 @@ export default function EditionCreationFlow({ onBack }: EditionCreationFlowProps
   const [uploadProgress, setUploadProgress] = useState("")
   const [isDeploying, setIsDeploying] = useState(false)
   const [deploymentStep, setDeploymentStep] = useState<string>("")
+  const [registryUpdateFailed, setRegistryUpdateFailed] = useState(false)
   const debouncedFormData = useDebounce(formData, 1000)
 
   const selectedChain = supportedChains.find(c => c.id === formData.selectedChainId)
@@ -151,6 +152,10 @@ export default function EditionCreationFlow({ onBack }: EditionCreationFlowProps
           }
           setLastSaved(saved.lastUpdated)
           setSaveStatus("saved")
+          if (saved.formData.contractAddress) {
+            setRegistryUpdateFailed(true)
+            setCurrentStep(4)
+          }
         }
       } catch (error) {
         console.error("Failed to load draft:", error)
@@ -438,31 +443,46 @@ export default function EditionCreationFlow({ onBack }: EditionCreationFlowProps
         throw new Error("Contract deployment failed - no address returned")
       }
 
-      setDeploymentStep("Updating registry...")
-      const actor = await getRegistryActor(identity)
-
-      const updateResult = await actor.update_ethereum_stage({
-        collection_id: formData.canisterRecordId,
-        stage: { Deployed: null },
-        contract_address: [contractAddress],
-        owner_address: [address],
-        manifest_url: [formData.manifestUrl],
-        files_uploaded: [true],
-      })
-
-      if ('Err' in updateResult) {
-        console.error('Failed to update registry:', updateResult.Err)
-      } else {
-        await actor.update_collection_status({
-          collection_id: formData.canisterRecordId,
-          status: { Active: null }
-        })
-      }
-
       const updatedFormData = { ...formData, contractAddress }
       setFormData(updatedFormData)
       const artworkAsFiles = editionArtwork ? [editionArtwork] : undefined
       await saveDraft(draftId, updatedFormData, collectionImage || undefined, bannerImage || undefined, artworkAsFiles)
+
+      toast.success("Contract deployed on-chain!", {
+        description: `Contract: ${contractAddress.slice(0, 10)}...${contractAddress.slice(-8)}`,
+      })
+
+      setDeploymentStep("Updating registry...")
+      try {
+        const actor = await getRegistryActor(identity)
+
+        const updateResult = await actor.update_ethereum_stage({
+          collection_id: formData.canisterRecordId,
+          stage: { Deployed: null },
+          contract_address: [contractAddress],
+          owner_address: [address],
+          manifest_url: [formData.manifestUrl],
+          files_uploaded: [true],
+        })
+
+        if ('Err' in updateResult) {
+          console.error('Failed to update registry:', updateResult.Err)
+          setRegistryUpdateFailed(true)
+          toast.error("Registry update failed", { description: "Contract deployed but registry not updated. Click retry." })
+        } else {
+          await actor.update_collection_status({
+            collection_id: formData.canisterRecordId,
+            status: { Active: null }
+          })
+          await deleteDraft(draftId)
+          setRegistryUpdateFailed(false)
+          toast.success("Collection registered successfully!")
+        }
+      } catch (registryError) {
+        console.error('Registry update error:', registryError)
+        setRegistryUpdateFailed(true)
+        toast.error("Registry update failed", { description: "Contract deployed but registry not updated. Click retry." })
+      }
 
       toast.success("Edition Contract Deployed!", {
         description: `Contract: ${contractAddress.slice(0, 10)}...${contractAddress.slice(-8)}`,
@@ -476,6 +496,48 @@ export default function EditionCreationFlow({ onBack }: EditionCreationFlowProps
     } catch (error: any) {
       console.error('Deployment failed:', error)
       toast.error("Deployment failed", { description: error?.message || "Check console for details" })
+    } finally {
+      setIsDeploying(false)
+      setDeploymentStep("")
+    }
+  }
+
+  const handleRetryRegistryUpdate = async () => {
+    if (!formData.contractAddress || !formData.canisterRecordId || !address) {
+      toast.error("Missing required data for retry")
+      return
+    }
+
+    setIsDeploying(true)
+    setDeploymentStep("Retrying registry update...")
+
+    try {
+      const actor = await getRegistryActor(identity)
+
+      const updateResult = await actor.update_ethereum_stage({
+        collection_id: formData.canisterRecordId,
+        stage: { Deployed: null },
+        contract_address: [formData.contractAddress],
+        owner_address: [address],
+        manifest_url: [formData.manifestUrl || ""],
+        files_uploaded: [true],
+      })
+
+      if ('Err' in updateResult) {
+        console.error('Failed to update registry:', updateResult.Err)
+        toast.error("Registry update failed", { description: updateResult.Err })
+      } else {
+        await actor.update_collection_status({
+          collection_id: formData.canisterRecordId,
+          status: { Active: null }
+        })
+        await deleteDraft(draftId)
+        setRegistryUpdateFailed(false)
+        toast.success("Collection registered successfully!")
+      }
+    } catch (error: any) {
+      console.error('Registry update error:', error)
+      toast.error("Registry update failed", { description: error?.message || "Check console for details" })
     } finally {
       setIsDeploying(false)
       setDeploymentStep("")
@@ -843,6 +905,23 @@ export default function EditionCreationFlow({ onBack }: EditionCreationFlowProps
                           <div className="font-medium text-green-900 dark:text-green-100 mb-1">Deployed!</div>
                           <p className="font-mono text-xs break-all">{formData.contractAddress}</p>
                         </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {formData.contractAddress && registryUpdateFailed && (
+                    <div className="bg-yellow-50 dark:bg-yellow-950/20 p-4 rounded-lg">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-start gap-3">
+                          <Info className="h-5 w-5 text-yellow-600 mt-0.5" />
+                          <div>
+                            <div className="font-medium text-yellow-900 dark:text-yellow-100 mb-1">Registry Update Required</div>
+                            <p className="text-sm text-yellow-700 dark:text-yellow-200">Contract deployed. Click retry to update registry.</p>
+                          </div>
+                        </div>
+                        <Button size="sm" onClick={handleRetryRegistryUpdate} disabled={isDeploying}>
+                          {isDeploying ? <Loader2 className="h-4 w-4 animate-spin" /> : "Retry Registry"}
+                        </Button>
                       </div>
                     </div>
                   )}

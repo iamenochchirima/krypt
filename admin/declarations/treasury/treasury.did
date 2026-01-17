@@ -1,0 +1,22 @@
+type ChainBalance = record { balance : float64; chain : text; address : text };
+type PaymentRecord = record {
+  id : text;
+  from : text;
+  chain : text;
+  tx_signature : text;
+  timestamp : nat64;
+  amount : float64;
+  purpose : text;
+};
+type PlatformWallets = record {
+  solana : opt text;
+  ethereum : opt text;
+  bitcoin : opt text;
+};
+type Result = variant { Ok : text; Err : text };
+service : {
+  get_balances : () -> (vec ChainBalance) query;
+  get_payments : () -> (vec PaymentRecord) query;
+  get_platform_wallets : () -> (PlatformWallets) query;
+  record_payment : (PaymentRecord) -> (Result);
+}

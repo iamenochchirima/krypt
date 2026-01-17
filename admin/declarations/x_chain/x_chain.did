@@ -1,0 +1,35 @@
+type CommitmentLevel = variant { finalized; confirmed; processed };
+type Ed25519KeyName = variant {
+  MainnetTestKey1;
+  LocalDevelopment;
+  MainnetProdKey1;
+};
+type HttpHeader = record { value : text; name : text };
+type InitArgs = record {
+  admin : principal;
+  solana_commitment_level : opt CommitmentLevel;
+  ed25519_key_name : opt Ed25519KeyName;
+  solana_network : opt SolanaNetwork;
+  sol_rpc_canister_id : opt principal;
+};
+type RpcEndpoint = record { url : text; headers : opt vec HttpHeader };
+type SolanaNetwork = variant { Mainnet; Custom : RpcEndpoint; Devnet };
+type TokenAmount = record {
+  decimals : nat8;
+  uiAmount : opt float64;
+  uiAmountString : text;
+  amount : text;
+};
+service : (InitArgs) -> {
+  associated_token_account : (opt principal, text) -> (text);
+  create_associated_token_account : (opt principal, text) -> (text);
+  create_nonce_account : (opt principal) -> (text);
+  get_balance : (opt text) -> (nat);
+  get_nonce : (opt text) -> (text);
+  get_spl_token_balance : (opt text, text) -> (TokenAmount);
+  nonce_account : (opt principal) -> (text);
+  send_sol : (opt principal, text, nat) -> (text);
+  send_sol_with_durable_nonce : (opt principal, text, nat) -> (text);
+  send_spl_token : (opt principal, text, text, nat) -> (text);
+  solana_account : (opt principal) -> (text);
+}

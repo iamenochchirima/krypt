@@ -1,8 +1,37 @@
-export type { _SERVICE as USERS_SERVICE } from "@client/declarations/users/users.did";
-export type { _SERVICE as IDENTITY_CERTIFIER_SERVICE } from "@client/declarations/identity_certifier/identity_certifier.did";
+export type { _SERVICE as USERS_SERVICE } from "@declarations/users/users.did";
+export type { _SERVICE as IDENTITY_CERTIFIER_SERVICE } from "@declarations/identity_certifier/identity_certifier.did";
+export type { _SERVICE as REGISTRY_SERVICE } from "@declarations/registry/registry.did";
 
-export { idlFactory as usersIDL } from "@client/declarations/users/users.did.js";
-export { idlFactory as identityCertifierIDL } from "@client/declarations/identity_certifier/identity_certifier.did.js";
+export { idlFactory as usersIDL } from "@declarations/users/users.did.js";
+export { idlFactory as identityCertifierIDL } from "@declarations/identity_certifier/identity_certifier.did.js";
+export { idlFactory as registryIDL } from "@declarations/registry/registry.did.js";
+
+export type {
+  User,
+  AdminUser,
+  AdminRole,
+  AdminStatus,
+  BannedUser,
+  Permission,
+  Config,
+  AddAdminArgs,
+  AddUserArgs,
+  BanUserArgs,
+  UpdateAdminRoleArgs,
+  UpdateAdminPermissionsArgs,
+} from "@declarations/users/users.did";
+
+export type {
+  Collection,
+  CollectionStatus,
+  CollectionCategory,
+  CollectionsResult,
+  Blockchain,
+  ChainData,
+  SetFeaturedArgs,
+  SetVerifiedArgs,
+  Socials,
+} from "@declarations/registry/registry.did";
 
 const network = process.env.NEXT_PUBLIC_ENVIRONMENT || "local";
 
@@ -58,16 +87,19 @@ type Env = "ic" | "local";
 interface CanisterConfig {
   usersCanisterId: string;
   identityCertifierCanisterId: string;
+  registryCanisterId: string;
 }
 
 const productionCanisters: CanisterConfig = {
   usersCanisterId: getCanisterId("users"),
   identityCertifierCanisterId: getCanisterId("identity_certifier"),
+  registryCanisterId: getCanisterId("registry"),
 };
 
 const localCanisters: CanisterConfig = {
   usersCanisterId: getCanisterId("users"),
   identityCertifierCanisterId: getCanisterId("identity_certifier"),
+  registryCanisterId: getCanisterId("registry"),
 };
 
 const canisterConfigs: Record<Env, CanisterConfig> = {
@@ -78,4 +110,5 @@ const canisterConfigs: Record<Env, CanisterConfig> = {
 export const {
   usersCanisterId,
   identityCertifierCanisterId,
+  registryCanisterId,
 } = canisterConfigs[network as Env];

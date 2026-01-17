@@ -12,7 +12,7 @@ import { Progress } from "@/components/ui/progress"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Upload, CheckCircle, Info, Rocket, Check, Clock, Loader2, ExternalLink, Globe, Twitter, MessageCircle, Send, ArrowLeft, Sparkles } from "lucide-react"
-import { saveDraft, loadDraft } from "@/lib/storage/draftStorage"
+import { saveDraft, loadDraft, deleteDraft } from "@/lib/storage/draftStorage"
 import { useDebounce } from "@/hooks/useDebounce"
 import { useAuth } from "@/providers/auth-context"
 import { getRegistryActor } from "@/providers/actors/marketplace"
@@ -22,7 +22,7 @@ import { toast } from "sonner"
 import { useWallet } from "@solana/wallet-adapter-react"
 import { createUmi } from "@metaplex-foundation/umi-bundle-defaults"
 import { mplCore, createCollection } from "@metaplex-foundation/mpl-core"
-import { create, addConfigLines, mplCoreCandyMachine, mintV1, fetchCandyMachine, fetchCandyGuard } from "@metaplex-foundation/mpl-core-candy-machine"
+import { create, addConfigLines, mplCandyMachine, mintV1, fetchCandyMachine, fetchCandyGuard } from "@metaplex-foundation/mpl-core-candy-machine"
 import {
   generateSigner,
   percentAmount,
@@ -217,8 +217,10 @@ export default function CoreCreationFlow({ onBack }: CoreCreationFlowProps) {
           description: formData.description,
           royaltyBps: parseInt(formData.royaltyBps),
         },
-        wallet,
-        bannerImage || undefined
+        undefined,
+        storageProvider === "nft-storage" ? process.env.NEXT_PUBLIC_PINATA_JWT : undefined,
+        bannerImage || undefined,
+        wallet
       )
 
       const updatedFormData = {
@@ -245,15 +247,16 @@ export default function CoreCreationFlow({ onBack }: CoreCreationFlowProps) {
   }
 
   const handleNext = async () => {
-    if (currentStep === 3 && !formData.manifestUrl) {
+    let manifestUrl = formData.manifestUrl
+    if (currentStep === 3 && !manifestUrl) {
       try {
-        await handleStorageUpload()
+        manifestUrl = await handleStorageUpload()
       } catch (error) {
         return
       }
     }
 
-    if (currentStep === 3 && formData.manifestUrl && !formData.canisterRecordId) {
+    if (currentStep === 3 && manifestUrl && !formData.canisterRecordId) {
       try {
         setIsUploading(true)
         setUploadProgress("Creating collection record...")
@@ -292,7 +295,7 @@ export default function CoreCreationFlow({ onBack }: CoreCreationFlowProps) {
           chain_data: {
             Solana: {
               Core: {
-                deployment_stage: { FilesUploaded: null },
+                deployment_stage: { FilesUploading: null },
                 collection_address: [],
                 candy_machine_address: [],
                 manifest_url: [formData.manifestUrl],
@@ -370,7 +373,7 @@ export default function CoreCreationFlow({ onBack }: CoreCreationFlowProps) {
 
       const umi = createUmi(SOLANA_RPC_URL)
         .use(mplCore())
-        .use(mplCoreCandyMachine())
+        .use(mplCandyMachine())
         .use(walletAdapterIdentity(wallet))
 
       // Generate keypairs for collection and candy machine
@@ -410,7 +413,6 @@ export default function CoreCreationFlow({ onBack }: CoreCreationFlowProps) {
         collection: collectionSigner.publicKey,
         collectionUpdateAuthority: umi.identity,
         itemsAvailable: parseInt(formData.maxSupply),
-        authority: umi.identity,
         isMutable: true,
         configLineSettings: some({
           prefixName: '',
@@ -456,34 +458,43 @@ export default function CoreCreationFlow({ onBack }: CoreCreationFlowProps) {
 
       toast.success("All metadata added!")
 
-      setDeploymentStep("Updating registry...")
-
-      const updateResult = await registryActor.update_solana_stage({
-        collection_id: formData.canisterRecordId!,
-        stage: { Deployed: null },
-        collection_address: [collectionSigner.publicKey.toString()],
-        candy_machine_address: [candyMachineSigner.publicKey.toString()],
-        manifest_url: [],
-        authority: [publicKey.toString()],
-      })
-
-      if ('Err' in updateResult) {
-        console.error("Failed to update registry:", updateResult.Err)
-      }
-
-      setFormData(prev => ({
-        ...prev,
-        collectionAddress: collectionSigner.publicKey.toString(),
-        candyMachineAddress: candyMachineSigner.publicKey.toString(),
-      }))
-
-      await saveDraft(draftId, {
+      const updatedFormData = {
         ...formData,
         collectionAddress: collectionSigner.publicKey.toString(),
         candyMachineAddress: candyMachineSigner.publicKey.toString(),
-      }, collectionImage || undefined, bannerImage || undefined, nftAssets || undefined)
+      }
+      setFormData(updatedFormData)
+      await saveDraft(draftId, updatedFormData, collectionImage || undefined, bannerImage || undefined, nftAssets || undefined)
 
-      toast.success("Collection deployed successfully!")
+      toast.success("Collection deployed on-chain!")
+
+      setDeploymentStep("Updating registry...")
+      try {
+        const updateResult = await registryActor.update_solana_stage({
+          collection_id: formData.canisterRecordId!,
+          update_data: {
+            Core: {
+              stage: { Deployed: null },
+              collection_address: [collectionSigner.publicKey.toString()],
+              candy_machine_address: [candyMachineSigner.publicKey.toString()],
+              manifest_url: [],
+              authority: [publicKey.toString()],
+            }
+          },
+        })
+
+        if ('Err' in updateResult) {
+          console.error("Failed to update registry:", updateResult.Err)
+          toast.error("Registry update failed", { description: "Collection deployed but registry not updated." })
+        } else {
+          await deleteDraft(draftId)
+          toast.success("Collection deployed successfully!")
+        }
+      } catch (registryError) {
+        console.error('Registry update error:', registryError)
+        toast.error("Registry update failed", { description: "Collection deployed but registry not updated." })
+      }
+
       setDeploymentStep("Deployment complete!")
       setCurrentStep(4)
 

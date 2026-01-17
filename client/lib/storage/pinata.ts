@@ -14,12 +14,13 @@ export class PinataUploader implements StorageUploader {
 
   async uploadCollection(
     collectionImage: File,
-    nftAssets: FileList,
+    nftAssets: File[] | FileList,
     collectionData: {
       name: string
       symbol: string
       description: string
-      supply: number
+      supply?: number
+      royaltyBps?: number
     },
     onProgress?: (uploaded: number, total: number) => void,
     bannerImage?: File

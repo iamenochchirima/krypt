@@ -12,7 +12,7 @@ import { Progress } from "@/components/ui/progress"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Upload, Eye, CheckCircle, Info, Rocket, Check, Clock, Loader2, ExternalLink, Globe, Twitter, MessageCircle, Send, ArrowLeft } from "lucide-react"
-import { saveDraft, loadDraft } from "@/lib/storage/draftStorage"
+import { saveDraft, loadDraft, deleteDraft } from "@/lib/storage/draftStorage"
 import { useDebounce } from "@/hooks/useDebounce"
 import { useAuth } from "@/providers/auth-context"
 import { getRegistryActor } from "@/providers/actors/marketplace"
@@ -617,57 +617,6 @@ export default function LegacyCreationFlow({ onBack }: LegacyCreationFlowProps) 
         }
       }
 
-      // Step 7: Update registry
-      setDeploymentStep("Updating registry...")
-      const actor = await getRegistryActor(identity)
-
-      console.log('Updating registry with canisterRecordId:', formData.canisterRecordId)
-
-      if (formData.canisterRecordId) {
-        const goLiveDate = new Date(`${formData.saleStartDate}T${formData.saleStartTime}`)
-        const goLiveDateMs = isNaN(goLiveDate.getTime()) ? Date.now() : goLiveDate.getTime()
-
-        console.log('Registry update payload:', {
-          collection_id: formData.canisterRecordId,
-          candy_machine_address: candyMachine.publicKey.toString(),
-          collection_mint: collectionMint.publicKey.toString(),
-          go_live_date: goLiveDateMs,
-        })
-
-        const updateResult = await actor.update_solana_stage({
-          collection_id: formData.canisterRecordId,
-          stage: { Deployed: null },
-          candy_machine_address: [candyMachine.publicKey.toString()],
-          collection_mint: [collectionMint.publicKey.toString()],
-          manifest_url: [formData.manifestUrl],
-          files_uploaded: [true],
-          metadata_created: [true],
-          candy_machine_authority: [publicKey.toString()],
-          candy_machine_config: [{
-            price: BigInt(Math.floor(parseFloat(formData.mintPrice) * 1_000_000_000)),
-            go_live_date: [BigInt(goLiveDateMs)],
-            items_available: BigInt(itemsAvailable),
-            seller_fee_basis_points: parseInt(formData.royaltyBps),
-            symbol: formData.symbol,
-          }],
-        })
-
-        console.log('Registry update result:', updateResult)
-
-        if ('Err' in updateResult) {
-          console.error('Failed to update registry:', updateResult.Err)
-          toast.error('Failed to update registry', { description: updateResult.Err })
-        } else {
-          await actor.update_collection_status({
-            collection_id: formData.canisterRecordId,
-            status: { Active: null }
-          })
-        }
-      } else {
-        console.warn('No canisterRecordId found, skipping registry update')
-      }
-
-      // Save to form data
       const updatedFormData = {
         ...formData,
         candyMachineAddress: candyMachine.publicKey.toString(),
@@ -676,7 +625,67 @@ export default function LegacyCreationFlow({ onBack }: LegacyCreationFlowProps) 
       setFormData(updatedFormData)
       await saveDraft(draftId, updatedFormData, collectionImage || undefined, bannerImage || undefined, nftAssets || undefined)
 
-      toast.success("Collection deployed successfully!", {
+      toast.success("Collection deployed on-chain!", {
+        description: `Candy Machine: ${candyMachine.publicKey.toString().slice(0, 8)}...`,
+      })
+
+      setDeploymentStep("Updating registry...")
+      try {
+        const actor = await getRegistryActor(identity)
+
+        console.log('Updating registry with canisterRecordId:', formData.canisterRecordId)
+
+        if (formData.canisterRecordId) {
+          const goLiveDate = new Date(`${formData.saleStartDate}T${formData.saleStartTime}`)
+          const goLiveDateMs = isNaN(goLiveDate.getTime()) ? Date.now() : goLiveDate.getTime()
+
+          console.log('Registry update payload:', {
+            collection_id: formData.canisterRecordId,
+            candy_machine_address: candyMachine.publicKey.toString(),
+            collection_mint: collectionMint.publicKey.toString(),
+            go_live_date: goLiveDateMs,
+          })
+
+          const updateResult = await actor.update_solana_stage({
+            collection_id: formData.canisterRecordId,
+            stage: { Deployed: null },
+            candy_machine_address: [candyMachine.publicKey.toString()],
+            collection_mint: [collectionMint.publicKey.toString()],
+            manifest_url: [formData.manifestUrl],
+            files_uploaded: [true],
+            metadata_created: [true],
+            candy_machine_authority: [publicKey.toString()],
+            candy_machine_config: [{
+              price: BigInt(Math.floor(parseFloat(formData.mintPrice) * 1_000_000_000)),
+              go_live_date: [BigInt(goLiveDateMs)],
+              items_available: BigInt(itemsAvailable),
+              seller_fee_basis_points: parseInt(formData.royaltyBps),
+              symbol: formData.symbol,
+            }],
+          })
+
+          console.log('Registry update result:', updateResult)
+
+          if ('Err' in updateResult) {
+            console.error('Failed to update registry:', updateResult.Err)
+            toast.error('Registry update failed', { description: 'Collection deployed but registry not updated. You can retry later.' })
+          } else {
+            await actor.update_collection_status({
+              collection_id: formData.canisterRecordId,
+              status: { Active: null }
+            })
+            await deleteDraft(draftId)
+            toast.success("Collection registered successfully!")
+          }
+        } else {
+          console.warn('No canisterRecordId found, skipping registry update')
+        }
+      } catch (registryError) {
+        console.error('Registry update error:', registryError)
+        toast.error('Registry update failed', { description: 'Collection deployed but registry not updated. You can retry later.' })
+      }
+
+      toast.success("Collection deployment complete!", {
         description: `Candy Machine: ${candyMachine.publicKey.toString().slice(0, 8)}...`,
       })
 

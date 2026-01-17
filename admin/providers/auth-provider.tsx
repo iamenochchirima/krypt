@@ -7,10 +7,13 @@ import { getIIURL, host, network } from "@/constants/urls"
 import {
   usersCanisterId,
   identityCertifierCanisterId,
+  registryCanisterId,
   usersIDL,
   identityCertifierIDL,
+  registryIDL,
   USERS_SERVICE,
-  IDENTITY_CERTIFIER_SERVICE
+  IDENTITY_CERTIFIER_SERVICE,
+  REGISTRY_SERVICE
 } from "@/constants/canisters-config"
 import {
   apiInitAuth,
@@ -40,6 +43,9 @@ interface AuthContextType {
   isAuthenticating: boolean
   error: string | null
   clearError: () => void
+  usersActor: ActorSubclass<USERS_SERVICE> | null
+  identityCertifierActor: ActorSubclass<IDENTITY_CERTIFIER_SERVICE> | null
+  registryActor: ActorSubclass<REGISTRY_SERVICE> | null
 }
 
 const AuthContext = createContext<AuthContextType | null>(null)
@@ -56,6 +62,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const [usersActor, setUsersActor] = useState<ActorSubclass<USERS_SERVICE> | null>(null)
   const [identityCertifierActor, setIdentityCertifierActor] = useState<ActorSubclass<IDENTITY_CERTIFIER_SERVICE> | null>(null)
+  const [registryActor, setRegistryActor] = useState<ActorSubclass<REGISTRY_SERVICE> | null>(null)
 
   const authInProgress = useRef(false)
 
@@ -117,6 +124,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         canisterId: identityCertifierCanisterId,
       })
       setIdentityCertifierActor(_identityCertifierActor)
+
+      const _registryActor = Actor.createActor<REGISTRY_SERVICE>(registryIDL, {
+        agent,
+        canisterId: registryCanisterId,
+      })
+      setRegistryActor(_registryActor)
 
       setIsAuthenticated(true)
     } catch (error) {
@@ -272,6 +285,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setIsBackendAuthenticated(false)
     setUsersActor(null)
     setIdentityCertifierActor(null)
+    setRegistryActor(null)
     setError(null)
     authInProgress.current = false
   }
@@ -292,7 +306,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       isLoading,
       isAuthenticating,
       error,
-      clearError
+      clearError,
+      usersActor,
+      identityCertifierActor,
+      registryActor
     }}>
       {children}
     </AuthContext.Provider>

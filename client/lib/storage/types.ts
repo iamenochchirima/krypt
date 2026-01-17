@@ -22,7 +22,7 @@ export interface NFTMetadata {
 export interface StorageUploader {
   uploadCollection(
     collectionImage: File,
-    nftAssets: FileList,
+    nftAssets: File[] | FileList,
     collectionData: {
       name: string
       symbol: string

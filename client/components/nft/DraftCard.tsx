@@ -33,8 +33,15 @@ export function DraftCard({ draft, onDiscard }: DraftCardProps) {
     return `${diffDays}d ago`
   }
 
-  const getBlockchainLink = (blockchain: string) => {
-    return `/nft/launchpad/${blockchain.toLowerCase()}`
+  const getDraftLink = (draftId: string, blockchain: string) => {
+    const parts = draftId.split('-')
+    const chain = parts[0]
+    const type = parts.length > 2 ? parts[1] : null
+
+    if (type) {
+      return `/nft/launchpad/create/${chain}?type=${type}`
+    }
+    return `/nft/launchpad/create/${chain}`
   }
 
   const getBlockchainColor = (blockchain: string) => {
@@ -86,7 +93,7 @@ export function DraftCard({ draft, onDiscard }: DraftCardProps) {
 
           <div className="flex flex-col gap-2">
             <Button asChild size="sm" className="whitespace-nowrap">
-              <Link href={getBlockchainLink(draft.blockchain)}>
+              <Link href={getDraftLink(draft.id, draft.blockchain)}>
                 Continue
               </Link>
             </Button>

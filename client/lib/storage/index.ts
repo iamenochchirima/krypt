@@ -7,12 +7,13 @@ export type { StorageProvider, UploadResult }
 export async function uploadToStorage(
   provider: StorageProvider,
   collectionImage: File,
-  nftAssets: FileList,
+  nftAssets: File[] | FileList,
   collectionData: {
     name: string
     symbol: string
     description: string
-    supply: number
+    supply?: number
+    royaltyBps?: number
   },
   onProgress?: (uploaded: number, total: number) => void,
   pinataApiKey?: string,
