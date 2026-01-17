@@ -47,8 +47,10 @@ interface CollectionFormData {
   treeSize: string
   collectionId?: string
   manifestUrl?: string
+  canisterRecordId?: string
   collectionMintAddress?: string
   merkleTreeAddress?: string
+  nftMetadataUrls?: string[]
 }
 
 type SaveStatus = "saving" | "saved" | "idle"
@@ -101,6 +103,8 @@ export default function CompressedCreationFlow({ onBack }: CompressedCreationFlo
   const [storageProvider, setStorageProvider] = useState<StorageProvider>("nft-storage")
 
   const [isLoading, setIsLoading] = useState(true)
+  const [isUploading, setIsUploading] = useState(false)
+  const [uploadProgress, setUploadProgress] = useState("")
   const [isDeploying, setIsDeploying] = useState(false)
   const [deploymentStep, setDeploymentStep] = useState<string>("")
   const [mintProgress, setMintProgress] = useState({ current: 0, total: 0 })
@@ -182,24 +186,16 @@ export default function CompressedCreationFlow({ onBack }: CompressedCreationFlo
     return TREE_CONFIGS[formData.treeSize as keyof typeof TREE_CONFIGS] || TREE_CONFIGS.small
   }
 
-  const handleDeploy = async () => {
-    if (!connected || !publicKey || !identity) {
-      toast.error("Please connect your wallet first")
-      return
-    }
-
+  const handleStorageUpload = async () => {
     if (!collectionImage || !nftAssets || nftAssets.length === 0) {
       toast.error("Please upload collection image and NFT assets")
       return
     }
 
-    setIsDeploying(true)
-    const totalNfts = nftAssets.length
-    setMintProgress({ current: 0, total: totalNfts })
-
     try {
-      // Step 1: Upload assets
-      setDeploymentStep("Uploading assets to storage...")
+      setIsUploading(true)
+      setUploadProgress("Uploading assets to storage...")
+
       const uploadResult = await uploadToStorage(
         storageProvider,
         collectionImage,
@@ -214,10 +210,135 @@ export default function CompressedCreationFlow({ onBack }: CompressedCreationFlo
         bannerImage || undefined
       )
 
-      setFormData(prev => ({ ...prev, manifestUrl: uploadResult.manifestUrl }))
-      toast.success("Assets uploaded!")
+      const updatedFormData = {
+        ...formData,
+        imageUrl: uploadResult.collectionImageUrl,
+        bannerUrl: uploadResult.bannerImageUrl || formData.bannerUrl,
+        manifestUrl: uploadResult.manifestUrl,
+        nftMetadataUrls: uploadResult.nftMetadataUrls,
+      }
+      setFormData(updatedFormData)
+      await saveDraft(draftId, updatedFormData, collectionImage || undefined, bannerImage || undefined, nftAssets || undefined)
 
-      // Step 2: Initialize UMI
+      setUploadProgress("Upload complete!")
+      toast.success("Assets uploaded successfully!")
+      return uploadResult.manifestUrl
+    } catch (error) {
+      console.error("Storage upload failed:", error)
+      toast.error(`Upload failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      throw error
+    } finally {
+      setIsUploading(false)
+      setUploadProgress("")
+    }
+  }
+
+  const handleNext = async () => {
+    if (currentStep === 3 && !formData.manifestUrl) {
+      try {
+        await handleStorageUpload()
+      } catch (error) {
+        return
+      }
+    }
+
+    if (currentStep === 3 && formData.manifestUrl && !formData.canisterRecordId) {
+      try {
+        setIsUploading(true)
+        setUploadProgress("Creating collection record...")
+
+        const registryActor = await getRegistryActor(identity)
+
+        const socials: Socials = {
+          website: formData.website ? [formData.website] : [],
+          twitter: formData.twitter ? [formData.twitter] : [],
+          discord: formData.discord ? [formData.discord] : [],
+          telegram: formData.telegram ? [formData.telegram] : [],
+        }
+
+        const categoryMap: Record<string, CollectionCategory> = {
+          art: { Art: null },
+          pfp: { PFP: null },
+          gaming: { Gaming: null },
+          music: { Music: null },
+          photography: { Photography: null },
+          utility: { Utility: null },
+          metaverse: { Metaverse: null },
+          other: { Other: null },
+        }
+
+        const createResult = await registryActor.create_collection({
+          blockchain: { Solana: null },
+          name: formData.name,
+          symbol: formData.symbol,
+          description: formData.description,
+          image_url: formData.imageUrl,
+          banner_url: formData.bannerUrl ? [formData.bannerUrl] : [],
+          total_supply: BigInt(formData.maxSupply),
+          royalty_bps: parseInt(formData.royaltyBps),
+          mint_price: [BigInt(Math.floor(parseFloat(formData.mintPrice) * 1e9))],
+          metadata: [],
+          chain_data: {
+            Solana: {
+              Compressed: {
+                deployment_stage: { FilesUploaded: null },
+                collection_mint: [],
+                merkle_tree_address: [],
+                manifest_url: [formData.manifestUrl],
+                authority: publicKey ? [publicKey.toString()] : [],
+              }
+            }
+          },
+          socials: [socials],
+          category: formData.category ? [categoryMap[formData.category]] : [],
+          tags: [],
+        })
+
+        if ('Err' in createResult) {
+          throw new Error(createResult.Err)
+        }
+
+        const canisterRecordId = createResult.Ok
+        const updatedFormData = { ...formData, canisterRecordId, collectionId: canisterRecordId }
+        setFormData(updatedFormData)
+        await saveDraft(draftId, updatedFormData, collectionImage || undefined, bannerImage || undefined, nftAssets || undefined)
+
+        console.log("Collection record created:", canisterRecordId)
+      } catch (error) {
+        console.error("Failed to create collection record:", error)
+        toast.error("Failed to create collection record", {
+          description: error instanceof Error ? error.message : "Please try again"
+        })
+        return
+      } finally {
+        setIsUploading(false)
+        setUploadProgress("")
+      }
+    }
+
+    if (currentStep < 4) {
+      setCurrentStep(currentStep + 1)
+    }
+  }
+
+  const handleDeploy = async () => {
+    if (!connected || !publicKey || !identity) {
+      toast.error("Please connect your wallet first")
+      return
+    }
+
+    if (!formData.manifestUrl || !formData.canisterRecordId || !formData.nftMetadataUrls) {
+      toast.error("Please upload assets and create collection record first")
+      return
+    }
+
+    setIsDeploying(true)
+    const totalNfts = formData.nftMetadataUrls.length
+    setMintProgress({ current: 0, total: totalNfts })
+
+    try {
+      const registryActor = await getRegistryActor(identity)
+
       setDeploymentStep("Creating Merkle tree...")
 
       const umi = createUmi(SOLANA_RPC_URL)
@@ -225,14 +346,11 @@ export default function CompressedCreationFlow({ onBack }: CompressedCreationFlo
         .use(mplTokenMetadata())
         .use(walletAdapterIdentity(wallet))
 
-      // Generate keypairs
       const merkleTreeSigner = generateSigner(umi)
       const collectionMintSigner = generateSigner(umi)
 
-      // Get tree config
       const treeConfig = getTreeConfig()
 
-      // Create Merkle tree
       const createTreeTx = await createTree(umi, {
         merkleTree: merkleTreeSigner,
         maxDepth: treeConfig.maxDepth,
@@ -243,13 +361,12 @@ export default function CompressedCreationFlow({ onBack }: CompressedCreationFlo
       console.log("Merkle tree created:", merkleTreeSigner.publicKey.toString())
       toast.success("Merkle tree created!")
 
-      // Step 3: Create collection NFT
       setDeploymentStep("Creating collection NFT...")
 
       const createCollectionTx = createNft(umi, {
         mint: collectionMintSigner,
         name: formData.name,
-        uri: uploadResult.collectionImageUrl,
+        uri: formData.imageUrl,
         sellerFeeBasisPoints: percentAmount(parseInt(formData.royaltyBps) / 100, 2),
         isCollection: true,
         collectionDetails: {
@@ -262,10 +379,9 @@ export default function CompressedCreationFlow({ onBack }: CompressedCreationFlo
       console.log("Collection created:", collectionMintSigner.publicKey.toString())
       toast.success("Collection NFT created!")
 
-      // Step 4: Mint all cNFTs
       setDeploymentStep(`Minting ${totalNfts} compressed NFTs...`)
 
-      for (let i = 0; i < uploadResult.nftMetadataUrls.length; i++) {
+      for (let i = 0; i < formData.nftMetadataUrls.length; i++) {
         setMintProgress({ current: i + 1, total: totalNfts })
         setDeploymentStep(`Minting NFT ${i + 1} of ${totalNfts}...`)
 
@@ -275,7 +391,7 @@ export default function CompressedCreationFlow({ onBack }: CompressedCreationFlo
           collectionMint: collectionMintSigner.publicKey,
           metadata: {
             name: `${formData.name} #${i + 1}`,
-            uri: uploadResult.nftMetadataUrls[i],
+            uri: formData.nftMetadataUrls[i],
             sellerFeeBasisPoints: parseInt(formData.royaltyBps),
             collection: { key: collectionMintSigner.publicKey, verified: false },
             creators: [
@@ -286,71 +402,30 @@ export default function CompressedCreationFlow({ onBack }: CompressedCreationFlo
 
         await mintTx.sendAndConfirm(umi)
 
-        // Add small delay between mints to avoid rate limiting
-        if (i < uploadResult.nftMetadataUrls.length - 1) {
+        if (i < formData.nftMetadataUrls.length - 1) {
           await new Promise(resolve => setTimeout(resolve, 500))
         }
       }
 
       toast.success("All NFTs minted!")
 
-      // Step 5: Create registry record
-      setDeploymentStep("Saving to registry...")
+      setDeploymentStep("Updating registry...")
 
-      const registryActor = await getRegistryActor(identity)
-
-      const socials: Socials = {
-        website: formData.website ? [formData.website] : [],
-        twitter: formData.twitter ? [formData.twitter] : [],
-        discord: formData.discord ? [formData.discord] : [],
-        telegram: formData.telegram ? [formData.telegram] : [],
-      }
-
-      const categoryMap: Record<string, CollectionCategory> = {
-        art: { Art: null },
-        pfp: { PFP: null },
-        gaming: { Gaming: null },
-        music: { Music: null },
-        photography: { Photography: null },
-        utility: { Utility: null },
-        metaverse: { Metaverse: null },
-        other: { Other: null },
-      }
-
-      const createResult = await registryActor.create_collection({
-        blockchain: { Solana: null },
-        name: formData.name,
-        symbol: formData.symbol,
-        description: formData.description,
-        image_url: uploadResult.collectionImageUrl,
-        banner_url: uploadResult.bannerImageUrl ? [uploadResult.bannerImageUrl] : [],
-        total_supply: BigInt(totalNfts),
-        royalty_bps: parseInt(formData.royaltyBps),
-        mint_price: [BigInt(0)],
-        metadata: [],
-        chain_data: {
-          Solana: {
-            Compressed: {
-              deployment_stage: { Deployed: null },
-              merkle_tree_address: [merkleTreeSigner.publicKey.toString()],
-              collection_mint: [collectionMintSigner.publicKey.toString()],
-              manifest_url: [uploadResult.manifestUrl],
-              authority: [publicKey.toString()],
-            }
-          }
-        },
-        socials: [socials],
-        category: formData.category ? [categoryMap[formData.category]] : [],
-        tags: [],
+      const updateResult = await registryActor.update_solana_stage({
+        collection_id: formData.canisterRecordId!,
+        stage: { Deployed: null },
+        collection_address: [collectionMintSigner.publicKey.toString()],
+        candy_machine_address: [merkleTreeSigner.publicKey.toString()],
+        manifest_url: [],
+        authority: [publicKey.toString()],
       })
 
-      if ('Err' in createResult) {
-        throw new Error(createResult.Err)
+      if ('Err' in updateResult) {
+        console.error("Failed to update registry:", updateResult.Err)
       }
 
       setFormData(prev => ({
         ...prev,
-        collectionId: createResult.Ok,
         collectionMintAddress: collectionMintSigner.publicKey.toString(),
         merkleTreeAddress: merkleTreeSigner.publicKey.toString(),
       }))

@@ -56,8 +56,10 @@ interface CollectionFormData {
   hasEndTime: boolean
   collectionId?: string
   manifestUrl?: string
+  canisterRecordId?: string
   collectionAddress?: string
   candyMachineAddress?: string
+  nftMetadataUrls?: string[]
 }
 
 type SaveStatus = "saving" | "saved" | "idle"
@@ -195,22 +197,16 @@ export default function CoreCreationFlow({ onBack }: CoreCreationFlowProps) {
     }
   }
 
-  const handleDeploy = async () => {
-    if (!connected || !publicKey || !identity) {
-      toast.error("Please connect your wallet first")
-      return
-    }
-
+  const handleStorageUpload = async () => {
     if (!collectionImage || !nftAssets || nftAssets.length === 0) {
       toast.error("Please upload collection image and NFT assets")
       return
     }
 
-    setIsDeploying(true)
-
     try {
-      // Step 1: Upload assets
-      setDeploymentStep("Uploading assets to storage...")
+      setIsUploading(true)
+      setUploadProgress("Uploading assets to storage...")
+
       const uploadResult = await uploadToStorage(
         storageProvider,
         collectionImage,
@@ -225,11 +221,131 @@ export default function CoreCreationFlow({ onBack }: CoreCreationFlowProps) {
         bannerImage || undefined
       )
 
-      setFormData(prev => ({ ...prev, manifestUrl: uploadResult.manifestUrl }))
-      toast.success("Assets uploaded successfully!")
+      const updatedFormData = {
+        ...formData,
+        imageUrl: uploadResult.collectionImageUrl,
+        bannerUrl: uploadResult.bannerImageUrl || formData.bannerUrl,
+        manifestUrl: uploadResult.manifestUrl,
+        nftMetadataUrls: uploadResult.nftMetadataUrls,
+      }
+      setFormData(updatedFormData)
+      await saveDraft(draftId, updatedFormData, collectionImage || undefined, bannerImage || undefined, nftAssets || undefined)
 
-      // Step 2: Create registry record
-      setDeploymentStep("Creating collection record...")
+      setUploadProgress("Upload complete!")
+      toast.success("Assets uploaded successfully!")
+      return uploadResult.manifestUrl
+    } catch (error) {
+      console.error("Storage upload failed:", error)
+      toast.error(`Upload failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      throw error
+    } finally {
+      setIsUploading(false)
+      setUploadProgress("")
+    }
+  }
+
+  const handleNext = async () => {
+    if (currentStep === 3 && !formData.manifestUrl) {
+      try {
+        await handleStorageUpload()
+      } catch (error) {
+        return
+      }
+    }
+
+    if (currentStep === 3 && formData.manifestUrl && !formData.canisterRecordId) {
+      try {
+        setIsUploading(true)
+        setUploadProgress("Creating collection record...")
+
+        const registryActor = await getRegistryActor(identity)
+
+        const socials: Socials = {
+          website: formData.website ? [formData.website] : [],
+          twitter: formData.twitter ? [formData.twitter] : [],
+          discord: formData.discord ? [formData.discord] : [],
+          telegram: formData.telegram ? [formData.telegram] : [],
+        }
+
+        const categoryMap: Record<string, CollectionCategory> = {
+          art: { Art: null },
+          pfp: { PFP: null },
+          gaming: { Gaming: null },
+          music: { Music: null },
+          photography: { Photography: null },
+          utility: { Utility: null },
+          metaverse: { Metaverse: null },
+          other: { Other: null },
+        }
+
+        const createResult = await registryActor.create_collection({
+          blockchain: { Solana: null },
+          name: formData.name,
+          symbol: formData.symbol,
+          description: formData.description,
+          image_url: formData.imageUrl,
+          banner_url: formData.bannerUrl ? [formData.bannerUrl] : [],
+          total_supply: BigInt(formData.maxSupply),
+          royalty_bps: parseInt(formData.royaltyBps),
+          mint_price: [BigInt(Math.floor(parseFloat(formData.mintPrice) * 1e9))],
+          metadata: [],
+          chain_data: {
+            Solana: {
+              Core: {
+                deployment_stage: { FilesUploaded: null },
+                collection_address: [],
+                candy_machine_address: [],
+                manifest_url: [formData.manifestUrl],
+                authority: publicKey ? [publicKey.toString()] : [],
+              }
+            }
+          },
+          socials: [socials],
+          category: formData.category ? [categoryMap[formData.category]] : [],
+          tags: [],
+        })
+
+        if ('Err' in createResult) {
+          throw new Error(createResult.Err)
+        }
+
+        const canisterRecordId = createResult.Ok
+        const updatedFormData = { ...formData, canisterRecordId, collectionId: canisterRecordId }
+        setFormData(updatedFormData)
+        await saveDraft(draftId, updatedFormData, collectionImage || undefined, bannerImage || undefined, nftAssets || undefined)
+
+        console.log("Collection record created:", canisterRecordId)
+      } catch (error) {
+        console.error("Failed to create collection record:", error)
+        toast.error("Failed to create collection record", {
+          description: error instanceof Error ? error.message : "Please try again"
+        })
+        return
+      } finally {
+        setIsUploading(false)
+        setUploadProgress("")
+      }
+    }
+
+    if (currentStep < 4) {
+      setCurrentStep(currentStep + 1)
+    }
+  }
+
+  const handleDeploy = async () => {
+    if (!connected || !publicKey || !identity) {
+      toast.error("Please connect your wallet first")
+      return
+    }
+
+    if (!formData.manifestUrl || !formData.canisterRecordId || !formData.nftMetadataUrls) {
+      toast.error("Please upload assets and create collection record first")
+      return
+    }
+
+    setIsDeploying(true)
+
+    try {
       const registryActor = await getRegistryActor(identity)
 
       const socials: Socials = {
@@ -250,7 +366,6 @@ export default function CoreCreationFlow({ onBack }: CoreCreationFlowProps) {
         other: { Other: null },
       }
 
-      // Step 3: Initialize UMI and deploy
       setDeploymentStep("Creating Core Collection...")
 
       const umi = createUmi(SOLANA_RPC_URL)
@@ -262,11 +377,10 @@ export default function CoreCreationFlow({ onBack }: CoreCreationFlowProps) {
       const collectionSigner = generateSigner(umi)
       const candyMachineSigner = generateSigner(umi)
 
-      // Create Core Collection
       const createCollectionTx = await createCollection(umi, {
         collection: collectionSigner,
         name: formData.name,
-        uri: uploadResult.collectionImageUrl,
+        uri: formData.imageUrl,
         plugins: [
           {
             type: 'Royalties',
@@ -318,10 +432,9 @@ export default function CoreCreationFlow({ onBack }: CoreCreationFlowProps) {
       console.log("Candy Machine created:", candyMachineSigner.publicKey.toString())
       toast.success("Core Candy Machine created!")
 
-      // Step 5: Add config lines
       setDeploymentStep("Adding NFT metadata...")
 
-      const configLines = uploadResult.nftMetadataUrls.map((uri, index) => ({
+      const configLines = formData.nftMetadataUrls!.map((uri, index) => ({
         name: `${formData.name} #${index + 1}`,
         uri: uri,
       }))
@@ -343,46 +456,32 @@ export default function CoreCreationFlow({ onBack }: CoreCreationFlowProps) {
 
       toast.success("All metadata added!")
 
-      // Step 6: Create registry record
-      setDeploymentStep("Saving to registry...")
+      setDeploymentStep("Updating registry...")
 
-      const createResult = await registryActor.create_collection({
-        blockchain: { Solana: null },
-        name: formData.name,
-        symbol: formData.symbol,
-        description: formData.description,
-        image_url: uploadResult.collectionImageUrl,
-        banner_url: uploadResult.bannerImageUrl ? [uploadResult.bannerImageUrl] : [],
-        total_supply: BigInt(formData.maxSupply),
-        royalty_bps: parseInt(formData.royaltyBps),
-        mint_price: [BigInt(Math.floor(parseFloat(formData.mintPrice) * 1e9))],
-        metadata: [],
-        chain_data: {
-          Solana: {
-            Core: {
-              deployment_stage: { Deployed: null },
-              collection_address: [collectionSigner.publicKey.toString()],
-              candy_machine_address: [candyMachineSigner.publicKey.toString()],
-              manifest_url: [uploadResult.manifestUrl],
-              authority: [publicKey.toString()],
-            }
-          }
-        },
-        socials: [socials],
-        category: formData.category ? [categoryMap[formData.category]] : [],
-        tags: [],
+      const updateResult = await registryActor.update_solana_stage({
+        collection_id: formData.canisterRecordId!,
+        stage: { Deployed: null },
+        collection_address: [collectionSigner.publicKey.toString()],
+        candy_machine_address: [candyMachineSigner.publicKey.toString()],
+        manifest_url: [],
+        authority: [publicKey.toString()],
       })
 
-      if ('Err' in createResult) {
-        throw new Error(createResult.Err)
+      if ('Err' in updateResult) {
+        console.error("Failed to update registry:", updateResult.Err)
       }
 
       setFormData(prev => ({
         ...prev,
-        collectionId: createResult.Ok,
         collectionAddress: collectionSigner.publicKey.toString(),
         candyMachineAddress: candyMachineSigner.publicKey.toString(),
       }))
+
+      await saveDraft(draftId, {
+        ...formData,
+        collectionAddress: collectionSigner.publicKey.toString(),
+        candyMachineAddress: candyMachineSigner.publicKey.toString(),
+      }, collectionImage || undefined, bannerImage || undefined, nftAssets || undefined)
 
       toast.success("Collection deployed successfully!")
       setDeploymentStep("Deployment complete!")
@@ -783,16 +882,74 @@ export default function CoreCreationFlow({ onBack }: CoreCreationFlowProps) {
                   </div>
                 </div>
 
+                {formData.manifestUrl && (
+                  <div className="bg-green-50 dark:bg-green-950/20 p-4 rounded-lg">
+                    <div className="flex items-start gap-3">
+                      <CheckCircle className="h-5 w-5 text-green-600 mt-0.5 flex-shrink-0" />
+                      <div className="text-sm">
+                        <div className="font-medium text-green-900 dark:text-green-100 mb-1">
+                          Files Already Uploaded
+                        </div>
+                        <div className="text-green-700 dark:text-green-200 mb-2">
+                          Your collection files have been uploaded. You can proceed to the next step or re-upload if needed.
+                        </div>
+                        <a
+                          href={formData.manifestUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs text-green-600 hover:underline break-all"
+                        >
+                          View Manifest
+                        </a>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {isUploading && uploadProgress && (
+                  <div className="bg-purple-50 dark:bg-purple-950/20 p-4 rounded-lg">
+                    <div className="flex items-center gap-3">
+                      <Loader2 className="h-5 w-5 text-purple-600 animate-spin" />
+                      <div className="text-sm font-medium text-purple-900 dark:text-purple-100">
+                        {uploadProgress}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 <div className="flex justify-between">
-                  <Button variant="outline" onClick={() => setCurrentStep(2)}>
+                  <Button variant="outline" onClick={() => setCurrentStep(2)} disabled={isUploading}>
                     Back
                   </Button>
-                  <Button
-                    onClick={() => setCurrentStep(4)}
-                    disabled={!validateStep(3)}
-                  >
-                    Continue to Deploy
-                  </Button>
+                  <div className="flex gap-2">
+                    {formData.manifestUrl && (
+                      <Button onClick={handleNext} disabled={isUploading}>
+                        Next
+                      </Button>
+                    )}
+                    <Button
+                      onClick={formData.manifestUrl ? handleStorageUpload : handleNext}
+                      disabled={isUploading || !collectionImage || !nftAssets}
+                      variant={formData.manifestUrl ? "outline" : "default"}
+                    >
+                      {isUploading ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Uploading...
+                        </>
+                      ) : formData.manifestUrl ? (
+                        <>
+                          <Upload className="mr-2 h-4 w-4" />
+                          Re-upload
+                        </>
+                      ) : (
+                        <>
+                          <Upload className="mr-2 h-4 w-4" />
+                          Upload
+                        </>
+                      )}
+                    </Button>
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -861,14 +1018,44 @@ export default function CoreCreationFlow({ onBack }: CoreCreationFlowProps) {
                         <span className="text-muted-foreground">Royalty:</span>
                         <span>{parseInt(formData.royaltyBps) / 100}%</span>
                         <span className="text-muted-foreground">NFT Assets:</span>
-                        <span>{nftAssets?.length || 0} files</span>
+                        <span>{formData.nftMetadataUrls?.length || nftAssets?.length || 0} files</span>
                       </div>
                     </div>
 
-                    {deploymentStep && (
-                      <div className="flex items-center gap-2 text-sm">
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                        <span>{deploymentStep}</span>
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <CheckCircle className="h-4 w-4 text-green-600" />
+                        <span className="text-sm">Files uploaded to storage</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <CheckCircle className="h-4 w-4 text-green-600" />
+                        <span className="text-sm">Collection record created</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {isDeploying ? (
+                          <Loader2 className="h-4 w-4 animate-spin text-purple-600" />
+                        ) : (
+                          <div className="h-4 w-4 rounded-full border-2 border-purple-600" />
+                        )}
+                        <span className="text-sm font-medium">
+                          {isDeploying ? deploymentStep : "Deploy to Solana"}
+                        </span>
+                      </div>
+                    </div>
+
+                    {!connected && (
+                      <div className="bg-yellow-50 dark:bg-yellow-950/20 p-4 rounded-lg">
+                        <div className="flex items-start gap-3">
+                          <Info className="h-5 w-5 text-yellow-600 mt-0.5 flex-shrink-0" />
+                          <div className="text-sm">
+                            <div className="font-medium text-yellow-900 dark:text-yellow-100 mb-1">
+                              Wallet Not Connected
+                            </div>
+                            <div className="text-yellow-700 dark:text-yellow-200">
+                              Please connect your Solana wallet to deploy
+                            </div>
+                          </div>
+                        </div>
                       </div>
                     )}
 

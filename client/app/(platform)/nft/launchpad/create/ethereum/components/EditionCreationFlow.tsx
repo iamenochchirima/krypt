@@ -119,7 +119,8 @@ export default function EditionCreationFlow({ onBack }: EditionCreationFlowProps
       if (!isLoading && (formData.name || formData.symbol || formData.description)) {
         setSaveStatus("saving")
         try {
-          await saveDraft(draftId, formData, collectionImage || undefined, bannerImage || undefined)
+          const artworkAsFiles = editionArtwork ? [editionArtwork] : undefined
+          await saveDraft(draftId, formData, collectionImage || undefined, bannerImage || undefined, artworkAsFiles)
           setSaveStatus("saved")
           setLastSaved(Date.now())
         } catch (error) {
@@ -144,6 +145,9 @@ export default function EditionCreationFlow({ onBack }: EditionCreationFlowProps
           if (saved.bannerImage) {
             setBannerImage(saved.bannerImage)
             setFormData(prev => ({...prev, bannerUrl: URL.createObjectURL(saved.bannerImage)}))
+          }
+          if (saved.nftAssets && saved.nftAssets.length > 0) {
+            setEditionArtwork(saved.nftAssets[0])
           }
           setLastSaved(saved.lastUpdated)
           setSaveStatus("saved")
@@ -257,7 +261,8 @@ export default function EditionCreationFlow({ onBack }: EditionCreationFlowProps
         manifestUrl: manifestUrl
       }
       setFormData(updatedFormData)
-      await saveDraft(draftId, updatedFormData, collectionImage || undefined, bannerImage || undefined)
+      const artworkAsFiles = editionArtwork ? [editionArtwork] : undefined
+      await saveDraft(draftId, updatedFormData, collectionImage || undefined, bannerImage || undefined, artworkAsFiles)
 
       setUploadProgress("Upload complete!")
       toast.success("Artwork uploaded successfully")
@@ -348,7 +353,8 @@ export default function EditionCreationFlow({ onBack }: EditionCreationFlowProps
         const canisterRecordId = createResult.Ok
         const updatedFormData = { ...formData, canisterRecordId, collectionId: canisterRecordId }
         setFormData(updatedFormData)
-        await saveDraft(draftId, updatedFormData, collectionImage || undefined, bannerImage || undefined)
+        const artworkAsFiles = editionArtwork ? [editionArtwork] : undefined
+        await saveDraft(draftId, updatedFormData, collectionImage || undefined, bannerImage || undefined, artworkAsFiles)
       } catch (error) {
         console.error("Failed to create collection record:", error)
         toast.error("Failed to create collection record", {
@@ -455,7 +461,8 @@ export default function EditionCreationFlow({ onBack }: EditionCreationFlowProps
 
       const updatedFormData = { ...formData, contractAddress }
       setFormData(updatedFormData)
-      await saveDraft(draftId, updatedFormData, collectionImage || undefined, bannerImage || undefined)
+      const artworkAsFiles = editionArtwork ? [editionArtwork] : undefined
+      await saveDraft(draftId, updatedFormData, collectionImage || undefined, bannerImage || undefined, artworkAsFiles)
 
       toast.success("Edition Contract Deployed!", {
         description: `Contract: ${contractAddress.slice(0, 10)}...${contractAddress.slice(-8)}`,

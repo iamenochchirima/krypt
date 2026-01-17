@@ -25,6 +25,10 @@ import {
   PanelLeft,
   Heart,
   Plus,
+  BookOpen,
+  GraduationCap,
+  Award,
+  BarChart3,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -101,6 +105,16 @@ const navigationConfig: Record<string, NavSection> = {
     items: [
       { label: "My Profile", href: "/profile", icon: User },
       { label: "Settings", href: "/profile/settings", icon: LayoutDashboard },
+    ],
+  },
+  learn: {
+    title: "Learn",
+    basePath: "/learn",
+    items: [
+      { label: "All Courses", href: "/learn", icon: BookOpen },
+      { label: "My Learning", href: "/learn/my-courses", icon: GraduationCap },
+      { label: "Certificates", href: "/learn/certificates", icon: Award },
+      { label: "Teacher Dashboard", href: "/learn/teacher", icon: BarChart3 },
     ],
   },
 }

@@ -7,6 +7,7 @@ import { ReduxProvider } from "@/lib/redux/provider"
 import { Web3Providers } from "@/providers/web3Provider"
 import { WalletConnectionProvider } from "@/connect-wallet"
 import { Toaster } from "@/components/ui/sonner"
+import { ConfettiProvider } from "@/providers/confetti-provider"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -31,6 +32,7 @@ export default function RootLayout({
           <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false} disableTransitionOnChange>
             <Web3Providers>
               <WalletConnectionProvider>
+                <ConfettiProvider />
                 {children}
                 <Toaster />
               </WalletConnectionProvider>
