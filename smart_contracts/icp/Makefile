@@ -5,8 +5,8 @@ deploy-frontend:
 	dfx deploy internet_identity
 
 deploy-backend:
-	dfx deploy users
-	dfx deploy identity_certifier --argument '(principal "o4jpg-z2hcz-bf2oe-zziee-bsw4t-jgecg-boagp-segn6-pdznr-u6bdc-zae")'
+	dfx deploy users --argument '(record { super_admin = principal "shu3y-t65bi-rhvef-c7vvy-arrzh-emws6-g2uew-hpgh2-uvjqi-7s3b2-zae" })'
+	dfx deploy identity_certifier --argument '(principal "shu3y-t65bi-rhvef-c7vvy-arrzh-emws6-g2uew-hpgh2-uvjqi-7s3b2-zae")'
 	dfx deploy treasury
 	dfx deploy registry --yes --argument '(record { admin = principal "o4jpg-z2hcz-bf2oe-zziee-bsw4t-jgecg-boagp-segn6-pdznr-u6bdc-zae" })'
 	dfx deploy x_chain --yes --argument '(record { admin = principal "o4jpg-z2hcz-bf2oe-zziee-bsw4t-jgecg-boagp-segn6-pdznr-u6bdc-zae" })'
@@ -58,12 +58,26 @@ deploy-marketplace-live:
 	dfx deploy marketplace --yes --argument '(record { admin = principal "o4jpg-z2hcz-bf2oe-zziee-bsw4t-jgecg-boagp-segn6-pdznr-u6bdc-zae"; collection_creation_fee = 100_000_000 : nat; marketplace_fee_percentage = 250 : nat16 })' --network ic
 
 deploy-users:
-	dfx deploy users
+	dfx deploy users --argument '(record { super_admin = principal "shu3y-t65bi-rhvef-c7vvy-arrzh-emws6-g2uew-hpgh2-uvjqi-7s3b2-zae" })'
 	dfx generate users
 	mkdir -p ../../client/declarations
 	mkdir -p ../../admin/declarations
 	rsync -av src/declarations/users/ ../../client/declarations/users/
 	rsync -av src/declarations/users/ ../../admin/declarations/users/
+
+deploy-users-live:
+	dfx deploy users --argument '(record { super_admin = principal "shu3y-t65bi-rhvef-c7vvy-arrzh-emws6-g2uew-hpgh2-uvjqi-7s3b2-zae" })' --network ic
+
+reinstall-users:
+	dfx canister install users --mode reinstall --yes --argument '(record { super_admin = principal "shu3y-t65bi-rhvef-c7vvy-arrzh-emws6-g2uew-hpgh2-uvjqi-7s3b2-zae" })'
+	dfx generate users
+	mkdir -p ../../client/declarations
+	mkdir -p ../../admin/declarations
+	rsync -av src/declarations/users/ ../../client/declarations/users/
+	rsync -av src/declarations/users/ ../../admin/declarations/users/
+
+reinstall-users-live:
+	dfx canister install users --mode reinstall --yes --network ic --argument '(record { super_admin = principal "shu3y-t65bi-rhvef-c7vvy-arrzh-emws6-g2uew-hpgh2-uvjqi-7s3b2-zae" })'
 
 deploy-treasury:
 	dfx deploy treasury

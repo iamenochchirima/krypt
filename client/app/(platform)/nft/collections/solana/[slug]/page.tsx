@@ -42,7 +42,7 @@ import NFTDetailModal from "./components/nft-detail-modal"
 
 export default function SolanaCollectionPage() {
   const params = useParams()
-  const collectionId = params?.id as string
+  const slug = params?.slug as string
   const wallet = useWallet()
   const { publicKey, connected, signTransaction } = wallet
   const { connection } = useConnection()
@@ -86,8 +86,8 @@ export default function SolanaCollectionPage() {
   const manifestUrl = solanaData?.manifest_url?.[0] || null
 
   useEffect(() => {
-    if (collectionId) loadCollectionData()
-  }, [collectionId])
+    if (slug) loadCollectionData()
+  }, [slug])
 
   useEffect(() => {
     if (collectionMint) loadNFTs()
@@ -133,7 +133,7 @@ export default function SolanaCollectionPage() {
     try {
       setIsLoading(true)
       const actor = await getRegistryActor(null)
-      const result = await actor.get_collection(collectionId)
+      const result = await actor.get_collection_by_slug(slug)
       if (!result || result.length === 0) {
         toast.error("Collection not found")
         return

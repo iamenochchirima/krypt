@@ -20,7 +20,7 @@ import { uploadToStorage, StorageProvider } from "@/lib/storage"
 import { toast } from "sonner"
 import { useWallet } from "@solana/wallet-adapter-react"
 import { createUmi } from "@metaplex-foundation/umi-bundle-defaults"
-import { mplBubblegum, createTree, mintToCollectionV1 } from "@metaplex-foundation/mpl-bubblegum"
+import { mplBubblegum, createTree } from "@metaplex-foundation/mpl-bubblegum"
 import { mplTokenMetadata, createNft, TokenStandard } from "@metaplex-foundation/mpl-token-metadata"
 import {
   generateSigner,
@@ -105,6 +105,8 @@ export default function CompressedCreationFlow({ onBack }: CompressedCreationFlo
   const [isLoading, setIsLoading] = useState(true)
   const [isUploading, setIsUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState("")
+  const [uploadedCount, setUploadedCount] = useState(0)
+  const [totalUploadCount, setTotalUploadCount] = useState(0)
   const [isDeploying, setIsDeploying] = useState(false)
   const [deploymentStep, setDeploymentStep] = useState<string>("")
   const [mintProgress, setMintProgress] = useState({ current: 0, total: 0 })
@@ -194,7 +196,10 @@ export default function CompressedCreationFlow({ onBack }: CompressedCreationFlo
 
     try {
       setIsUploading(true)
-      setUploadProgress("Uploading assets to storage...")
+      const totalFiles = nftAssets.length + 1
+      setTotalUploadCount(totalFiles)
+      setUploadedCount(0)
+      setUploadProgress("Uploading collection image...")
 
       const uploadResult = await uploadToStorage(
         storageProvider,
@@ -206,7 +211,11 @@ export default function CompressedCreationFlow({ onBack }: CompressedCreationFlo
           description: formData.description,
           royaltyBps: parseInt(formData.royaltyBps),
         },
-        undefined,
+        (uploaded: number, total: number) => {
+          setUploadedCount(uploaded)
+          setTotalUploadCount(total)
+          setUploadProgress(`Uploading file ${uploaded} of ${total}...`)
+        },
         storageProvider === "nft-storage" ? process.env.NEXT_PUBLIC_PINATA_JWT : undefined,
         bannerImage || undefined,
         wallet
@@ -287,7 +296,7 @@ export default function CompressedCreationFlow({ onBack }: CompressedCreationFlo
                 deployment_stage: { FilesUploading: null },
                 collection_mint: [],
                 merkle_tree_address: [],
-                manifest_url: [formData.manifestUrl],
+                manifest_url: manifestUrl ? [manifestUrl] : [],
                 authority: publicKey ? [publicKey.toString()] : [],
               }
             }
@@ -302,7 +311,7 @@ export default function CompressedCreationFlow({ onBack }: CompressedCreationFlo
         }
 
         const canisterRecordId = createResult.Ok
-        const updatedFormData = { ...formData, canisterRecordId, collectionId: canisterRecordId }
+        const updatedFormData = { ...formData, manifestUrl, canisterRecordId, collectionId: canisterRecordId }
         setFormData(updatedFormData)
         await saveDraft(draftId, updatedFormData, collectionImage || undefined, bannerImage || undefined, nftAssets || undefined)
 
@@ -325,23 +334,19 @@ export default function CompressedCreationFlow({ onBack }: CompressedCreationFlo
   }
 
   const handleDeploy = async () => {
-    if (!connected || !publicKey || !identity) {
+    if (!connected || !publicKey) {
       toast.error("Please connect your wallet first")
       return
     }
 
-    if (!formData.manifestUrl || !formData.canisterRecordId || !formData.nftMetadataUrls) {
+    if (!formData.manifestUrl || !formData.canisterRecordId) {
       toast.error("Please upload assets and create collection record first")
       return
     }
 
     setIsDeploying(true)
-    const totalNfts = formData.nftMetadataUrls.length
-    setMintProgress({ current: 0, total: totalNfts })
 
     try {
-      const registryActor = await getRegistryActor(identity)
-
       setDeploymentStep("Creating Merkle tree...")
 
       const umi = createUmi(SOLANA_RPC_URL)
@@ -360,7 +365,7 @@ export default function CompressedCreationFlow({ onBack }: CompressedCreationFlo
         maxBufferSize: treeConfig.maxBufferSize,
       })
 
-      await createTreeTx.sendAndConfirm(umi)
+      await createTreeTx.sendAndConfirm(umi, { confirm: { commitment: 'finalized' } })
       console.log("Merkle tree created:", merkleTreeSigner.publicKey.toString())
       toast.success("Merkle tree created!")
 
@@ -372,45 +377,11 @@ export default function CompressedCreationFlow({ onBack }: CompressedCreationFlo
         uri: formData.imageUrl,
         sellerFeeBasisPoints: percentAmount(parseInt(formData.royaltyBps) / 100, 2),
         isCollection: true,
-        collectionDetails: {
-          __kind: 'V1',
-          size: 0,
-        },
       })
 
-      await createCollectionTx.sendAndConfirm(umi)
+      await createCollectionTx.sendAndConfirm(umi, { confirm: { commitment: 'finalized' } })
       console.log("Collection created:", collectionMintSigner.publicKey.toString())
       toast.success("Collection NFT created!")
-
-      setDeploymentStep(`Minting ${totalNfts} compressed NFTs...`)
-
-      for (let i = 0; i < formData.nftMetadataUrls.length; i++) {
-        setMintProgress({ current: i + 1, total: totalNfts })
-        setDeploymentStep(`Minting NFT ${i + 1} of ${totalNfts}...`)
-
-        const mintTx = await mintToCollectionV1(umi, {
-          leafOwner: umi.identity.publicKey,
-          merkleTree: merkleTreeSigner.publicKey,
-          collectionMint: collectionMintSigner.publicKey,
-          metadata: {
-            name: `${formData.name} #${i + 1}`,
-            uri: formData.nftMetadataUrls[i],
-            sellerFeeBasisPoints: parseInt(formData.royaltyBps),
-            collection: { key: collectionMintSigner.publicKey, verified: false },
-            creators: [
-              { address: umi.identity.publicKey, verified: false, share: 100 },
-            ],
-          },
-        })
-
-        await mintTx.sendAndConfirm(umi)
-
-        if (i < formData.nftMetadataUrls.length - 1) {
-          await new Promise(resolve => setTimeout(resolve, 500))
-        }
-      }
-
-      toast.success("All NFTs minted!")
 
       const updatedFormData = {
         ...formData,
@@ -420,41 +391,63 @@ export default function CompressedCreationFlow({ onBack }: CompressedCreationFlo
       setFormData(updatedFormData)
       await saveDraft(draftId, updatedFormData, collectionImage || undefined, bannerImage || undefined, nftAssets || undefined)
 
-      toast.success("Collection deployed on-chain!")
-
-      setDeploymentStep("Updating registry...")
-      try {
-        const updateResult = await registryActor.update_solana_stage({
-          collection_id: formData.canisterRecordId!,
-          update_data: {
-            Compressed: {
-              stage: { Deployed: null },
-              collection_mint: [collectionMintSigner.publicKey.toString()],
-              merkle_tree_address: [merkleTreeSigner.publicKey.toString()],
-              manifest_url: [],
-              authority: [publicKey.toString()],
-            }
-          },
-        })
-
-        if ('Err' in updateResult) {
-          console.error("Failed to update registry:", updateResult.Err)
-          toast.error("Registry update failed", { description: "Collection deployed but registry not updated." })
-        } else {
-          await deleteDraft(draftId)
-          toast.success("Collection deployed successfully!")
-        }
-      } catch (registryError) {
-        console.error('Registry update error:', registryError)
-        toast.error("Registry update failed", { description: "Collection deployed but registry not updated." })
-      }
-
-      setDeploymentStep("Deployment complete!")
-      setCurrentStep(4)
-
+      toast.success("Collection deployed! NFTs can be minted from the manage page.")
+      setDeploymentStep("")
     } catch (error) {
       console.error("Deployment failed:", error)
       toast.error(`Deployment failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      setDeploymentStep("")
+    } finally {
+      setIsDeploying(false)
+    }
+  }
+
+  const handleFinish = async () => {
+    if (!formData.collectionMintAddress || !formData.merkleTreeAddress || !publicKey || !formData.canisterRecordId) {
+      toast.error("Missing required data")
+      return
+    }
+
+    setIsDeploying(true)
+    setDeploymentStep("Updating registry...")
+
+    try {
+      const registryActor = await getRegistryActor(identity)
+
+      const updateResult = await registryActor.update_solana_stage({
+        collection_id: formData.canisterRecordId,
+        update_data: {
+          Compressed: {
+            stage: { Deployed: null },
+            collection_mint: [formData.collectionMintAddress],
+            merkle_tree_address: [formData.merkleTreeAddress],
+            manifest_url: [],
+            authority: [publicKey.toString()],
+          }
+        },
+      })
+
+      if ('Err' in updateResult) {
+        throw new Error(updateResult.Err)
+      }
+
+      setDeploymentStep("Activating collection...")
+      await registryActor.update_collection_status({
+        collection_id: formData.canisterRecordId,
+        status: { Active: null },
+      })
+
+      await deleteDraft(draftId)
+      toast.success("Collection published!")
+
+      const collectionResult = await registryActor.get_collection(formData.canisterRecordId)
+      if (!collectionResult[0]?.slug) {
+        throw new Error("Failed to retrieve collection slug")
+      }
+      router.push(`/nft/collections/solana/manage/${collectionResult[0].slug}`)
+    } catch (error: any) {
+      console.error("Finish failed:", error)
+      toast.error(`Failed to publish: ${error.message || 'Unknown error'}`)
       setDeploymentStep("")
     } finally {
       setIsDeploying(false)
@@ -887,139 +880,164 @@ export default function CompressedCreationFlow({ onBack }: CompressedCreationFlo
                 <CardDescription>Review and deploy your compressed NFT collection</CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
-                {formData.merkleTreeAddress ? (
-                  <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-6 text-center">
-                    <CheckCircle className="h-12 w-12 text-green-600 mx-auto mb-4" />
-                    <h3 className="text-xl font-semibold text-green-800 dark:text-green-200 mb-2">
-                      Deployment Successful!
-                    </h3>
-                    <p className="text-sm text-green-700 dark:text-green-300 mb-4">
-                      {mintProgress.total} compressed NFTs have been minted!
-                    </p>
-                    <div className="space-y-2 text-sm">
-                      <p>
-                        <span className="text-muted-foreground">Merkle Tree: </span>
-                        <a
-                          href={`https://explorer.solana.com/address/${formData.merkleTreeAddress}?cluster=devnet`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-green-600 hover:underline inline-flex items-center gap-1"
-                        >
-                          {formData.merkleTreeAddress?.slice(0, 8)}...
-                          <ExternalLink className="h-3 w-3" />
-                        </a>
-                      </p>
-                      <p>
-                        <span className="text-muted-foreground">Collection: </span>
-                        <a
-                          href={`https://explorer.solana.com/address/${formData.collectionMintAddress}?cluster=devnet`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-green-600 hover:underline inline-flex items-center gap-1"
-                        >
-                          {formData.collectionMintAddress?.slice(0, 8)}...
-                          <ExternalLink className="h-3 w-3" />
-                        </a>
-                      </p>
-                    </div>
-                    <Button className="mt-4" onClick={() => router.push('/nft/collections')}>
-                      View My Collections
-                    </Button>
+                <div className="bg-muted/50 rounded-lg p-4 space-y-2">
+                  <h4 className="font-medium">Summary</h4>
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <span className="text-muted-foreground">Name:</span>
+                    <span>{formData.name}</span>
+                    <span className="text-muted-foreground">Symbol:</span>
+                    <span>{formData.symbol}</span>
+                    <span className="text-muted-foreground">Total Supply:</span>
+                    <span>{formData.nftMetadataUrls?.length || nftAssets?.length || 0}</span>
+                    <span className="text-muted-foreground">Tree Size:</span>
+                    <span className="capitalize">{formData.treeSize}</span>
+                    <span className="text-muted-foreground">Tree Cost:</span>
+                    <span>{getTreeConfig().cost}</span>
+                    <span className="text-muted-foreground">Royalty:</span>
+                    <span>{parseInt(formData.royaltyBps) / 100}%</span>
                   </div>
-                ) : (
-                  <>
-                    <div className="bg-muted/50 rounded-lg p-4 space-y-2">
-                      <h4 className="font-medium">Summary</h4>
-                      <div className="grid grid-cols-2 gap-2 text-sm">
-                        <span className="text-muted-foreground">Name:</span>
-                        <span>{formData.name}</span>
-                        <span className="text-muted-foreground">Symbol:</span>
-                        <span>{formData.symbol}</span>
-                        <span className="text-muted-foreground">NFTs to mint:</span>
-                        <span>{formData.nftMetadataUrls?.length || nftAssets?.length || 0}</span>
-                        <span className="text-muted-foreground">Tree Size:</span>
-                        <span className="capitalize">{formData.treeSize}</span>
-                        <span className="text-muted-foreground">Tree Cost:</span>
-                        <span>{getTreeConfig().cost}</span>
-                        <span className="text-muted-foreground">Royalty:</span>
-                        <span>{parseInt(formData.royaltyBps) / 100}%</span>
-                      </div>
-                    </div>
+                </div>
 
-                    <div className="space-y-2">
-                      <div className="flex items-center gap-2">
-                        <CheckCircle className="h-4 w-4 text-green-600" />
-                        <span className="text-sm">Files uploaded to storage</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <CheckCircle className="h-4 w-4 text-green-600" />
-                        <span className="text-sm">Collection record created</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {isDeploying ? (
-                          <Loader2 className="h-4 w-4 animate-spin text-green-600" />
-                        ) : (
-                          <div className="h-4 w-4 rounded-full border-2 border-green-600" />
-                        )}
-                        <span className="text-sm font-medium">
-                          {isDeploying ? deploymentStep : "Deploy to Solana"}
-                        </span>
-                      </div>
-                      {isDeploying && mintProgress.total > 0 && (
-                        <Progress value={(mintProgress.current / mintProgress.total) * 100} className="h-2" />
-                      )}
-                    </div>
-
-                    <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
-                      <div className="flex items-start gap-2">
-                        <CheckCircle className="h-5 w-5 text-green-600 mt-0.5" />
-                        <div className="text-sm text-green-800 dark:text-green-200">
-                          <p className="font-medium">Ultra low cost minting</p>
-                          <p className="mt-1">Each NFT costs ~0.00005 SOL to mint after tree creation!</p>
+                {formData.merkleTreeAddress && (
+                  <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
+                    <div className="flex items-start gap-3">
+                      <CheckCircle className="h-5 w-5 text-green-600 mt-0.5" />
+                      <div className="text-sm">
+                        <div className="font-medium text-green-900 dark:text-green-100 mb-2">
+                          Collection Deployed - Ready for minting
                         </div>
-                      </div>
-                    </div>
-
-                    {!connected && (
-                      <div className="bg-yellow-50 dark:bg-yellow-950/20 p-4 rounded-lg">
-                        <div className="flex items-start gap-3">
-                          <Info className="h-5 w-5 text-yellow-600 mt-0.5 flex-shrink-0" />
-                          <div className="text-sm">
-                            <div className="font-medium text-yellow-900 dark:text-yellow-100 mb-1">
-                              Wallet Not Connected
-                            </div>
-                            <div className="text-yellow-700 dark:text-yellow-200">
-                              Please connect your Solana wallet to deploy
-                            </div>
+                        <div className="space-y-1">
+                          <div>
+                            <span className="text-muted-foreground">Merkle Tree: </span>
+                            <a
+                              href={`https://explorer.solana.com/address/${formData.merkleTreeAddress}?cluster=devnet`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-green-600 hover:underline inline-flex items-center gap-1"
+                            >
+                              {formData.merkleTreeAddress.slice(0, 8)}...{formData.merkleTreeAddress.slice(-6)}
+                              <ExternalLink className="h-3 w-3" />
+                            </a>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">Collection: </span>
+                            <a
+                              href={`https://explorer.solana.com/address/${formData.collectionMintAddress}?cluster=devnet`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-green-600 hover:underline inline-flex items-center gap-1"
+                            >
+                              {formData.collectionMintAddress?.slice(0, 8)}...{formData.collectionMintAddress?.slice(-6)}
+                              <ExternalLink className="h-3 w-3" />
+                            </a>
                           </div>
                         </div>
                       </div>
-                    )}
-
-                    <div className="flex justify-between">
-                      <Button variant="outline" onClick={() => setCurrentStep(3)} disabled={isDeploying}>
-                        Back
-                      </Button>
-                      <Button
-                        onClick={handleDeploy}
-                        disabled={isDeploying || !connected}
-                        className="bg-green-600 hover:bg-green-700"
-                      >
-                        {isDeploying ? (
-                          <>
-                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                            Deploying...
-                          </>
-                        ) : (
-                          <>
-                            <Rocket className="h-4 w-4 mr-2" />
-                            Deploy & Mint All
-                          </>
-                        )}
-                      </Button>
                     </div>
-                  </>
+                  </div>
                 )}
+
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle className="h-4 w-4 text-green-600" />
+                    <span className="text-sm">Files uploaded to storage</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <CheckCircle className="h-4 w-4 text-green-600" />
+                    <span className="text-sm">Collection record created</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {formData.merkleTreeAddress ? (
+                      <CheckCircle className="h-4 w-4 text-green-600" />
+                    ) : isDeploying ? (
+                      <Loader2 className="h-4 w-4 animate-spin text-green-600" />
+                    ) : (
+                      <div className="h-4 w-4 rounded-full border-2 border-green-600" />
+                    )}
+                    <span className="text-sm">
+                      {formData.merkleTreeAddress ? "Deployed to Solana" : isDeploying ? deploymentStep : "Deploy to Solana"}
+                    </span>
+                  </div>
+                  {isDeploying && mintProgress.total > 0 && (
+                    <Progress value={(mintProgress.current / mintProgress.total) * 100} className="h-2" />
+                  )}
+                </div>
+
+                {!formData.merkleTreeAddress && (
+                  <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
+                    <div className="flex items-start gap-2">
+                      <CheckCircle className="h-5 w-5 text-green-600 mt-0.5" />
+                      <div className="text-sm text-green-800 dark:text-green-200">
+                        <p className="font-medium">Ultra low cost minting</p>
+                        <p className="mt-1">Each NFT costs ~0.00005 SOL to mint after tree creation!</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {!connected && (
+                  <div className="bg-yellow-50 dark:bg-yellow-950/20 p-4 rounded-lg">
+                    <div className="flex items-start gap-3">
+                      <Info className="h-5 w-5 text-yellow-600 mt-0.5 flex-shrink-0" />
+                      <div className="text-sm">
+                        <div className="font-medium text-yellow-900 dark:text-yellow-100 mb-1">
+                          Wallet Not Connected
+                        </div>
+                        <div className="text-yellow-700 dark:text-yellow-200">
+                          Please connect your Solana wallet to deploy
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex justify-between">
+                  <Button variant="outline" onClick={() => setCurrentStep(3)} disabled={isDeploying}>
+                    Back
+                  </Button>
+                  <div className="flex gap-2">
+                    <Button
+                      onClick={handleDeploy}
+                      disabled={isDeploying || !connected || !!formData.merkleTreeAddress}
+                      variant={formData.merkleTreeAddress ? "outline" : "default"}
+                      className={!formData.merkleTreeAddress ? "bg-green-600 hover:bg-green-700" : ""}
+                    >
+                      {isDeploying && !formData.merkleTreeAddress ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Deploying...
+                        </>
+                      ) : formData.merkleTreeAddress ? (
+                        <>
+                          <CheckCircle className="h-4 w-4 mr-2" />
+                          Deployed
+                        </>
+                      ) : (
+                        <>
+                          <Rocket className="h-4 w-4 mr-2" />
+                          Deploy & Mint
+                        </>
+                      )}
+                    </Button>
+                    <Button
+                      onClick={handleFinish}
+                      disabled={isDeploying || !formData.merkleTreeAddress}
+                      className="bg-green-600 hover:bg-green-700"
+                    >
+                      {isDeploying && formData.merkleTreeAddress ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Publishing...
+                        </>
+                      ) : (
+                        <>
+                          <CheckCircle className="h-4 w-4 mr-2" />
+                          Finish
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </div>
               </CardContent>
             </Card>
           )}

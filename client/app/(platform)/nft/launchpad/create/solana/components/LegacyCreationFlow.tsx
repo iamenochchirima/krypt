@@ -333,15 +333,13 @@ export default function LegacyCreationFlow({ onBack }: LegacyCreationFlowProps) 
           tags: [],
           chain_data: {
             Solana: {
-              deployment_stage: { FilesUploading: null },
-              candy_machine_address: [],
-              collection_mint: [],
-              manifest_url: [manifestUrl],
-              files_uploaded: true,
-              metadata_created: false,
-              candy_machine_items_uploaded: false,
-              candy_machine_authority: [],
-              candy_machine_config: [],
+              Legacy: {
+                deployment_stage: { FilesUploading: null },
+                candy_machine_address: [],
+                collection_mint: [],
+                manifest_url: [manifestUrl],
+                authority: publicKey ? [publicKey.toString()] : [],
+              }
             }
           }
         })
@@ -354,6 +352,7 @@ export default function LegacyCreationFlow({ onBack }: LegacyCreationFlowProps) 
 
         const updatedFormData = {
           ...formData,
+          manifestUrl,
           canisterRecordId,
           collectionId: canisterRecordId,
         }
@@ -433,7 +432,6 @@ export default function LegacyCreationFlow({ onBack }: LegacyCreationFlowProps) 
     try {
       setIsDeploying(true)
 
-      // Step 1: Create UMI instance
       setDeploymentStep("Initializing...")
       const umi = createUmi(SOLANA_RPC_URL)
         .use(walletAdapterIdentity({ publicKey, signTransaction, signAllTransactions }))
@@ -450,15 +448,10 @@ export default function LegacyCreationFlow({ onBack }: LegacyCreationFlowProps) 
         confirm: { commitment: 'confirmed' as const },
       }
 
-      // Step 2: Generate signers
       setDeploymentStep("Generating keypairs...")
       const candyMachine = generateSigner(umi)
       const collectionMint = generateSigner(umi)
 
-      console.log('Candy Machine:', candyMachine.publicKey.toString())
-      console.log('Collection Mint:', collectionMint.publicKey.toString())
-
-      // Step 3: Create Collection NFT
       setDeploymentStep("Creating Collection NFT...")
       await createNft(umi, {
         mint: collectionMint,
@@ -473,7 +466,6 @@ export default function LegacyCreationFlow({ onBack }: LegacyCreationFlowProps) 
         },
       }).sendAndConfirm(umi, finalizedOptions)
 
-      // Step 4: Verify collection exists
       setDeploymentStep("Verifying collection...")
       let retries = 5
       let collectionVerified = false
@@ -493,11 +485,9 @@ export default function LegacyCreationFlow({ onBack }: LegacyCreationFlowProps) 
         throw new Error('Failed to verify collection NFT')
       }
 
-      // Step 5: Create Candy Machine
       setDeploymentStep("Creating Candy Machine...")
       const itemsAvailable = Math.max(1, parseInt(formData.maxSupply || '1'))
 
-      // Build start date for guards
       let startDateForGuard: Date
       if (formData.saleStartDate && formData.saleStartTime) {
         const parsed = new Date(`${formData.saleStartDate}T${formData.saleStartTime}`)
@@ -506,7 +496,6 @@ export default function LegacyCreationFlow({ onBack }: LegacyCreationFlowProps) 
         startDateForGuard = new Date()
       }
 
-      // Build end date for guards (if configured)
       let endDateForGuard: Date | null = null
       if (formData.hasEndTime && formData.saleEndDate && formData.saleEndTime) {
         const parsed = new Date(`${formData.saleEndDate}T${formData.saleEndTime}`)
@@ -514,11 +503,6 @@ export default function LegacyCreationFlow({ onBack }: LegacyCreationFlowProps) 
           endDateForGuard = parsed
         }
       }
-
-      console.log('Guard dates:', {
-        startDate: startDateForGuard.toISOString(),
-        endDate: endDateForGuard?.toISOString() || 'none',
-      })
 
       const createBuilder = await create(umi, {
         candyMachine,
@@ -557,23 +541,19 @@ export default function LegacyCreationFlow({ onBack }: LegacyCreationFlowProps) 
         },
       })
 
-      const createResult = await createBuilder.sendAndConfirm(umi, confirmOptions)
-      console.log('Candy Machine creation result:', createResult)
-      console.log('Candy Machine created:', candyMachine.publicKey.toString())
+      await createBuilder.sendAndConfirm(umi, confirmOptions)
 
-      // Verify Candy Machine exists by fetching it
       setDeploymentStep("Verifying Candy Machine...")
       let verified = false
-      for (let attempt = 0; attempt < 5; attempt++) {
+      for (let attempt = 0; attempt < 10; attempt++) {
         try {
-          await new Promise(resolve => setTimeout(resolve, 2000))
+          await new Promise(resolve => setTimeout(resolve, 3000))
           const { fetchCandyMachine } = await import('@metaplex-foundation/mpl-candy-machine')
-          const cmAccount = await fetchCandyMachine(umi, candyMachine.publicKey)
-          console.log('Candy Machine verified:', cmAccount.publicKey.toString())
+          await fetchCandyMachine(umi, candyMachine.publicKey)
           verified = true
           break
         } catch (e) {
-          console.log(`Attempt ${attempt + 1}: Candy Machine not ready yet...`)
+          console.log(`Attempt ${attempt + 1}/10: Candy Machine not ready yet...`)
         }
       }
 
@@ -581,7 +561,6 @@ export default function LegacyCreationFlow({ onBack }: LegacyCreationFlowProps) 
         throw new Error('Failed to verify Candy Machine creation after multiple attempts')
       }
 
-      // Step 6: Insert config lines from manifest
       setDeploymentStep("Fetching NFT metadata...")
       const manifestResponse = await fetch(formData.manifestUrl)
       const manifestData = await manifestResponse.json()
@@ -625,81 +604,68 @@ export default function LegacyCreationFlow({ onBack }: LegacyCreationFlowProps) 
       setFormData(updatedFormData)
       await saveDraft(draftId, updatedFormData, collectionImage || undefined, bannerImage || undefined, nftAssets || undefined)
 
-      toast.success("Collection deployed on-chain!", {
-        description: `Candy Machine: ${candyMachine.publicKey.toString().slice(0, 8)}...`,
-      })
-
-      setDeploymentStep("Updating registry...")
-      try {
-        const actor = await getRegistryActor(identity)
-
-        console.log('Updating registry with canisterRecordId:', formData.canisterRecordId)
-
-        if (formData.canisterRecordId) {
-          const goLiveDate = new Date(`${formData.saleStartDate}T${formData.saleStartTime}`)
-          const goLiveDateMs = isNaN(goLiveDate.getTime()) ? Date.now() : goLiveDate.getTime()
-
-          console.log('Registry update payload:', {
-            collection_id: formData.canisterRecordId,
-            candy_machine_address: candyMachine.publicKey.toString(),
-            collection_mint: collectionMint.publicKey.toString(),
-            go_live_date: goLiveDateMs,
-          })
-
-          const updateResult = await actor.update_solana_stage({
-            collection_id: formData.canisterRecordId,
-            stage: { Deployed: null },
-            candy_machine_address: [candyMachine.publicKey.toString()],
-            collection_mint: [collectionMint.publicKey.toString()],
-            manifest_url: [formData.manifestUrl],
-            files_uploaded: [true],
-            metadata_created: [true],
-            candy_machine_authority: [publicKey.toString()],
-            candy_machine_config: [{
-              price: BigInt(Math.floor(parseFloat(formData.mintPrice) * 1_000_000_000)),
-              go_live_date: [BigInt(goLiveDateMs)],
-              items_available: BigInt(itemsAvailable),
-              seller_fee_basis_points: parseInt(formData.royaltyBps),
-              symbol: formData.symbol,
-            }],
-          })
-
-          console.log('Registry update result:', updateResult)
-
-          if ('Err' in updateResult) {
-            console.error('Failed to update registry:', updateResult.Err)
-            toast.error('Registry update failed', { description: 'Collection deployed but registry not updated. You can retry later.' })
-          } else {
-            await actor.update_collection_status({
-              collection_id: formData.canisterRecordId,
-              status: { Active: null }
-            })
-            await deleteDraft(draftId)
-            toast.success("Collection registered successfully!")
-          }
-        } else {
-          console.warn('No canisterRecordId found, skipping registry update')
-        }
-      } catch (registryError) {
-        console.error('Registry update error:', registryError)
-        toast.error('Registry update failed', { description: 'Collection deployed but registry not updated. You can retry later.' })
-      }
-
-      toast.success("Collection deployment complete!", {
-        description: `Candy Machine: ${candyMachine.publicKey.toString().slice(0, 8)}...`,
-      })
-
-      // Redirect to manage page
-      router.push(`/nft/collections/solana/manage/${formData.canisterRecordId}`)
-
+      toast.success("Collection deployed on-chain!")
+      setDeploymentStep("")
     } catch (error: any) {
       console.error('Deployment failed:', error)
       toast.error("Deployment failed", {
         description: error?.message || "Check console for details",
       })
+      setDeploymentStep("")
     } finally {
       setIsDeploying(false)
+    }
+  }
+
+  const handleFinish = async () => {
+    if (!formData.candyMachineAddress || !formData.collectionMintAddress || !formData.canisterRecordId || !publicKey) {
+      toast.error("Missing required data")
+      return
+    }
+
+    setIsDeploying(true)
+    setDeploymentStep("Updating registry...")
+
+    try {
+      const actor = await getRegistryActor(identity)
+
+      const updateResult = await actor.update_solana_stage({
+        collection_id: formData.canisterRecordId,
+        update_data: {
+          Legacy: {
+            stage: { Deployed: null },
+            candy_machine_address: [formData.candyMachineAddress],
+            collection_mint: [formData.collectionMintAddress],
+            manifest_url: [],
+            authority: [publicKey.toString()],
+          }
+        },
+      })
+
+      if ('Err' in updateResult) {
+        throw new Error(updateResult.Err)
+      }
+
+      setDeploymentStep("Activating collection...")
+      await actor.update_collection_status({
+        collection_id: formData.canisterRecordId,
+        status: { Active: null }
+      })
+
+      await deleteDraft(draftId)
+      toast.success("Collection published!")
+
+      const collectionResult = await actor.get_collection(formData.canisterRecordId)
+      if (!collectionResult[0]?.slug) {
+        throw new Error("Failed to retrieve collection slug")
+      }
+      router.push(`/nft/collections/solana/manage/${collectionResult[0].slug}`)
+    } catch (error: any) {
+      console.error('Finish failed:', error)
+      toast.error(`Failed to publish: ${error.message || 'Unknown error'}`)
       setDeploymentStep("")
+    } finally {
+      setIsDeploying(false)
     }
   }
 
@@ -1391,7 +1357,7 @@ export default function LegacyCreationFlow({ onBack }: LegacyCreationFlowProps) 
                         <CheckCircle className="h-5 w-5 text-green-600 mt-0.5" />
                         <div className="text-sm">
                           <div className="font-medium text-green-900 dark:text-green-100 mb-2">
-                            Deployed Successfully!
+                            Collection Deployed
                           </div>
                           <div className="space-y-1 text-green-700 dark:text-green-200">
                             <p className="font-mono text-xs break-all">
@@ -1464,28 +1430,48 @@ export default function LegacyCreationFlow({ onBack }: LegacyCreationFlowProps) 
               ) : currentStep < 4 ? (
                 <Button onClick={handleNext}>Next</Button>
               ) : (
-                <Button
-                  onClick={handleDeployClick}
-                  disabled={isDeploying || !connected || !!formData.candyMachineAddress}
-                  className="bg-purple-600 hover:bg-purple-700"
-                >
-                  {isDeploying ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      {deploymentStep || "Deploying..."}
-                    </>
-                  ) : formData.candyMachineAddress ? (
-                    <>
-                      <CheckCircle className="mr-2 h-4 w-4" />
-                      Deployed
-                    </>
-                  ) : (
-                    <>
-                      <Rocket className="mr-2 h-4 w-4" />
-                      Deploy Collection
-                    </>
-                  )}
-                </Button>
+                <div className="flex gap-2">
+                  <Button
+                    onClick={handleDeployClick}
+                    disabled={isDeploying || !connected || !!formData.candyMachineAddress}
+                    variant={formData.candyMachineAddress ? "outline" : "default"}
+                    className={!formData.candyMachineAddress ? "bg-purple-600 hover:bg-purple-700" : ""}
+                  >
+                    {isDeploying && !formData.candyMachineAddress ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        {deploymentStep || "Deploying..."}
+                      </>
+                    ) : formData.candyMachineAddress ? (
+                      <>
+                        <CheckCircle className="mr-2 h-4 w-4" />
+                        Deployed
+                      </>
+                    ) : (
+                      <>
+                        <Rocket className="mr-2 h-4 w-4" />
+                        Deploy
+                      </>
+                    )}
+                  </Button>
+                  <Button
+                    onClick={handleFinish}
+                    disabled={isDeploying || !formData.candyMachineAddress}
+                    className="bg-green-600 hover:bg-green-700"
+                  >
+                    {isDeploying && formData.candyMachineAddress ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Publishing...
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle className="mr-2 h-4 w-4" />
+                        Finish
+                      </>
+                    )}
+                  </Button>
+                </div>
               )}
             </div>
           </div>

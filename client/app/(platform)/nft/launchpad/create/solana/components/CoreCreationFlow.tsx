@@ -21,17 +21,8 @@ import { uploadToStorage, StorageProvider } from "@/lib/storage"
 import { toast } from "sonner"
 import { useWallet } from "@solana/wallet-adapter-react"
 import { createUmi } from "@metaplex-foundation/umi-bundle-defaults"
-import { mplCore, createCollection } from "@metaplex-foundation/mpl-core"
-import { create, addConfigLines, mplCandyMachine, mintV1, fetchCandyMachine, fetchCandyGuard } from "@metaplex-foundation/mpl-core-candy-machine"
-import {
-  generateSigner,
-  percentAmount,
-  some,
-  sol,
-  dateTime,
-  publicKey as umiPublicKey,
-  transactionBuilder,
-} from "@metaplex-foundation/umi"
+import { mplCore, createCollection, create, fetchCollection, ruleSet } from "@metaplex-foundation/mpl-core"
+import { generateSigner } from "@metaplex-foundation/umi"
 import { walletAdapterIdentity } from "@metaplex-foundation/umi-signer-wallet-adapters"
 
 interface CollectionFormData {
@@ -313,7 +304,7 @@ export default function CoreCreationFlow({ onBack }: CoreCreationFlowProps) {
         }
 
         const canisterRecordId = createResult.Ok
-        const updatedFormData = { ...formData, canisterRecordId, collectionId: canisterRecordId }
+        const updatedFormData = { ...formData, manifestUrl, canisterRecordId, collectionId: canisterRecordId }
         setFormData(updatedFormData)
         await saveDraft(draftId, updatedFormData, collectionImage || undefined, bannerImage || undefined, nftAssets || undefined)
 
@@ -336,7 +327,7 @@ export default function CoreCreationFlow({ onBack }: CoreCreationFlowProps) {
   }
 
   const handleDeploy = async () => {
-    if (!connected || !publicKey || !identity) {
+    if (!connected || !publicKey) {
       toast.error("Please connect your wallet first")
       return
     }
@@ -349,36 +340,13 @@ export default function CoreCreationFlow({ onBack }: CoreCreationFlowProps) {
     setIsDeploying(true)
 
     try {
-      const registryActor = await getRegistryActor(identity)
-
-      const socials: Socials = {
-        website: formData.website ? [formData.website] : [],
-        twitter: formData.twitter ? [formData.twitter] : [],
-        discord: formData.discord ? [formData.discord] : [],
-        telegram: formData.telegram ? [formData.telegram] : [],
-      }
-
-      const categoryMap: Record<string, CollectionCategory> = {
-        art: { Art: null },
-        pfp: { PFP: null },
-        gaming: { Gaming: null },
-        music: { Music: null },
-        photography: { Photography: null },
-        utility: { Utility: null },
-        metaverse: { Metaverse: null },
-        other: { Other: null },
-      }
-
       setDeploymentStep("Creating Core Collection...")
 
       const umi = createUmi(SOLANA_RPC_URL)
         .use(mplCore())
-        .use(mplCandyMachine())
         .use(walletAdapterIdentity(wallet))
 
-      // Generate keypairs for collection and candy machine
       const collectionSigner = generateSigner(umi)
-      const candyMachineSigner = generateSigner(umi)
 
       const createCollectionTx = await createCollection(umi, {
         collection: collectionSigner,
@@ -394,113 +362,101 @@ export default function CoreCreationFlow({ onBack }: CoreCreationFlowProps) {
                 percentage: 100,
               },
             ],
-            ruleSet: { __kind: 'None' },
+            ruleSet: ruleSet('None'),
           },
         ],
       })
 
-      const collectionResult = await createCollectionTx.sendAndConfirm(umi)
+      await createCollectionTx.sendAndConfirm(umi, { confirm: { commitment: 'finalized' } })
       console.log("Collection created:", collectionSigner.publicKey.toString())
       toast.success("Core Collection created!")
 
-      // Step 4: Create Core Candy Machine
-      setDeploymentStep("Creating Core Candy Machine...")
+      setDeploymentStep("Fetching collection...")
+      const collection = await fetchCollection(umi, collectionSigner.publicKey)
 
-      const goLiveDate = new Date(`${formData.saleStartDate}T${formData.saleStartTime}`)
+      setDeploymentStep("Minting Core Assets...")
 
-      const createCmTx = await create(umi, {
-        candyMachine: candyMachineSigner,
-        collection: collectionSigner.publicKey,
-        collectionUpdateAuthority: umi.identity,
-        itemsAvailable: parseInt(formData.maxSupply),
-        isMutable: true,
-        configLineSettings: some({
-          prefixName: '',
-          nameLength: 32,
-          prefixUri: '',
-          uriLength: 200,
-          isSequential: false,
-        }),
-        guards: {
-          solPayment: some({
-            lamports: sol(parseFloat(formData.mintPrice)),
-            destination: umi.identity.publicKey,
-          }),
-          startDate: some({ date: dateTime(goLiveDate.toISOString()) }),
-        },
-      })
+      for (let i = 0; i < formData.nftMetadataUrls!.length; i++) {
+        const assetSigner = generateSigner(umi)
+        setDeploymentStep(`Minting asset ${i + 1} of ${formData.nftMetadataUrls!.length}...`)
 
-      await createCmTx.sendAndConfirm(umi)
-      console.log("Candy Machine created:", candyMachineSigner.publicKey.toString())
-      toast.success("Core Candy Machine created!")
-
-      setDeploymentStep("Adding NFT metadata...")
-
-      const configLines = formData.nftMetadataUrls!.map((uri, index) => ({
-        name: `${formData.name} #${index + 1}`,
-        uri: uri,
-      }))
-
-      // Add in batches of 10
-      const batchSize = 10
-      for (let i = 0; i < configLines.length; i += batchSize) {
-        const batch = configLines.slice(i, i + batchSize)
-        setDeploymentStep(`Adding metadata ${i + 1}-${Math.min(i + batchSize, configLines.length)} of ${configLines.length}...`)
-
-        const addLinesTx = await addConfigLines(umi, {
-          candyMachine: candyMachineSigner.publicKey,
-          index: i,
-          configLines: batch,
+        const createAssetTx = await create(umi, {
+          asset: assetSigner,
+          name: `${formData.name} #${i + 1}`,
+          uri: formData.nftMetadataUrls![i],
+          collection: collection,
         })
 
-        await addLinesTx.sendAndConfirm(umi)
+        await createAssetTx.sendAndConfirm(umi)
+        console.log(`Asset ${i + 1} minted:`, assetSigner.publicKey.toString())
       }
 
-      toast.success("All metadata added!")
+      toast.success("All Core assets minted!")
 
       const updatedFormData = {
         ...formData,
         collectionAddress: collectionSigner.publicKey.toString(),
-        candyMachineAddress: candyMachineSigner.publicKey.toString(),
       }
       setFormData(updatedFormData)
       await saveDraft(draftId, updatedFormData, collectionImage || undefined, bannerImage || undefined, nftAssets || undefined)
 
       toast.success("Collection deployed on-chain!")
-
-      setDeploymentStep("Updating registry...")
-      try {
-        const updateResult = await registryActor.update_solana_stage({
-          collection_id: formData.canisterRecordId!,
-          update_data: {
-            Core: {
-              stage: { Deployed: null },
-              collection_address: [collectionSigner.publicKey.toString()],
-              candy_machine_address: [candyMachineSigner.publicKey.toString()],
-              manifest_url: [],
-              authority: [publicKey.toString()],
-            }
-          },
-        })
-
-        if ('Err' in updateResult) {
-          console.error("Failed to update registry:", updateResult.Err)
-          toast.error("Registry update failed", { description: "Collection deployed but registry not updated." })
-        } else {
-          await deleteDraft(draftId)
-          toast.success("Collection deployed successfully!")
-        }
-      } catch (registryError) {
-        console.error('Registry update error:', registryError)
-        toast.error("Registry update failed", { description: "Collection deployed but registry not updated." })
-      }
-
-      setDeploymentStep("Deployment complete!")
-      setCurrentStep(4)
-
+      setDeploymentStep("")
     } catch (error) {
       console.error("Deployment failed:", error)
       toast.error(`Deployment failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      setDeploymentStep("")
+    } finally {
+      setIsDeploying(false)
+    }
+  }
+
+  const handleFinish = async () => {
+    if (!formData.collectionAddress || !publicKey || !formData.canisterRecordId) {
+      toast.error("Missing required data")
+      return
+    }
+
+    setIsDeploying(true)
+    setDeploymentStep("Updating registry...")
+
+    try {
+      const registryActor = await getRegistryActor(identity)
+
+      const updateResult = await registryActor.update_solana_stage({
+        collection_id: formData.canisterRecordId,
+        update_data: {
+          Core: {
+            stage: { Deployed: null },
+            collection_address: [formData.collectionAddress],
+            candy_machine_address: [],
+            manifest_url: [],
+            authority: [publicKey.toString()],
+          }
+        },
+      })
+
+      if ('Err' in updateResult) {
+        throw new Error(updateResult.Err)
+      }
+
+      setDeploymentStep("Activating collection...")
+      await registryActor.update_collection_status({
+        collection_id: formData.canisterRecordId,
+        status: { Active: null },
+      })
+
+      await deleteDraft(draftId)
+      toast.success("Collection published!")
+
+      const collectionResult = await registryActor.get_collection(formData.canisterRecordId)
+      if (!collectionResult[0]?.slug) {
+        throw new Error("Failed to retrieve collection slug")
+      }
+      router.push(`/nft/collections/solana/manage/${collectionResult[0].slug}`)
+    } catch (error: any) {
+      console.error("Finish failed:", error)
+      toast.error(`Failed to publish: ${error.message || 'Unknown error'}`)
       setDeploymentStep("")
     } finally {
       setIsDeploying(false)
@@ -974,126 +930,132 @@ export default function CoreCreationFlow({ onBack }: CoreCreationFlowProps) {
                 <CardDescription>Review and deploy your Core NFT collection</CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
-                {formData.candyMachineAddress ? (
-                  <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-6 text-center">
-                    <CheckCircle className="h-12 w-12 text-green-600 mx-auto mb-4" />
-                    <h3 className="text-xl font-semibold text-green-800 dark:text-green-200 mb-2">
-                      Deployment Successful!
-                    </h3>
-                    <p className="text-sm text-green-700 dark:text-green-300 mb-4">
-                      Your Core NFT collection has been deployed
-                    </p>
-                    <div className="space-y-2 text-sm">
-                      <p>
-                        <span className="text-muted-foreground">Collection: </span>
+                <div className="bg-muted/50 rounded-lg p-4 space-y-2">
+                  <h4 className="font-medium">Summary</h4>
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <span className="text-muted-foreground">Name:</span>
+                    <span>{formData.name}</span>
+                    <span className="text-muted-foreground">Symbol:</span>
+                    <span>{formData.symbol}</span>
+                    <span className="text-muted-foreground">Supply:</span>
+                    <span>{formData.maxSupply}</span>
+                    <span className="text-muted-foreground">Mint Price:</span>
+                    <span>{formData.mintPrice} SOL</span>
+                    <span className="text-muted-foreground">Royalty:</span>
+                    <span>{parseInt(formData.royaltyBps) / 100}%</span>
+                    <span className="text-muted-foreground">NFT Assets:</span>
+                    <span>{formData.nftMetadataUrls?.length || nftAssets?.length || 0} files</span>
+                  </div>
+                </div>
+
+                {formData.collectionAddress && (
+                  <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
+                    <div className="flex items-start gap-3">
+                      <CheckCircle className="h-5 w-5 text-green-600 mt-0.5" />
+                      <div className="text-sm">
+                        <div className="font-medium text-green-900 dark:text-green-100 mb-1">
+                          Collection Deployed
+                        </div>
                         <a
                           href={`https://explorer.solana.com/address/${formData.collectionAddress}?cluster=devnet`}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="text-purple-600 hover:underline inline-flex items-center gap-1"
                         >
-                          {formData.collectionAddress?.slice(0, 8)}...
+                          {formData.collectionAddress.slice(0, 8)}...{formData.collectionAddress.slice(-6)}
                           <ExternalLink className="h-3 w-3" />
                         </a>
-                      </p>
-                      <p>
-                        <span className="text-muted-foreground">Candy Machine: </span>
-                        <a
-                          href={`https://explorer.solana.com/address/${formData.candyMachineAddress}?cluster=devnet`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-purple-600 hover:underline inline-flex items-center gap-1"
-                        >
-                          {formData.candyMachineAddress?.slice(0, 8)}...
-                          <ExternalLink className="h-3 w-3" />
-                        </a>
-                      </p>
+                      </div>
                     </div>
-                    <Button className="mt-4" onClick={() => router.push('/nft/collections')}>
-                      View My Collections
-                    </Button>
                   </div>
-                ) : (
-                  <>
-                    <div className="bg-muted/50 rounded-lg p-4 space-y-2">
-                      <h4 className="font-medium">Summary</h4>
-                      <div className="grid grid-cols-2 gap-2 text-sm">
-                        <span className="text-muted-foreground">Name:</span>
-                        <span>{formData.name}</span>
-                        <span className="text-muted-foreground">Symbol:</span>
-                        <span>{formData.symbol}</span>
-                        <span className="text-muted-foreground">Supply:</span>
-                        <span>{formData.maxSupply}</span>
-                        <span className="text-muted-foreground">Mint Price:</span>
-                        <span>{formData.mintPrice} SOL</span>
-                        <span className="text-muted-foreground">Royalty:</span>
-                        <span>{parseInt(formData.royaltyBps) / 100}%</span>
-                        <span className="text-muted-foreground">NFT Assets:</span>
-                        <span>{formData.nftMetadataUrls?.length || nftAssets?.length || 0} files</span>
-                      </div>
-                    </div>
+                )}
 
-                    <div className="space-y-2">
-                      <div className="flex items-center gap-2">
-                        <CheckCircle className="h-4 w-4 text-green-600" />
-                        <span className="text-sm">Files uploaded to storage</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <CheckCircle className="h-4 w-4 text-green-600" />
-                        <span className="text-sm">Collection record created</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {isDeploying ? (
-                          <Loader2 className="h-4 w-4 animate-spin text-purple-600" />
-                        ) : (
-                          <div className="h-4 w-4 rounded-full border-2 border-purple-600" />
-                        )}
-                        <span className="text-sm font-medium">
-                          {isDeploying ? deploymentStep : "Deploy to Solana"}
-                        </span>
-                      </div>
-                    </div>
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle className="h-4 w-4 text-green-600" />
+                    <span className="text-sm">Files uploaded to storage</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <CheckCircle className="h-4 w-4 text-green-600" />
+                    <span className="text-sm">Collection record created</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {formData.collectionAddress ? (
+                      <CheckCircle className="h-4 w-4 text-green-600" />
+                    ) : isDeploying ? (
+                      <Loader2 className="h-4 w-4 animate-spin text-purple-600" />
+                    ) : (
+                      <div className="h-4 w-4 rounded-full border-2 border-purple-600" />
+                    )}
+                    <span className="text-sm">
+                      {formData.collectionAddress ? "Deployed to Solana" : isDeploying ? deploymentStep : "Deploy to Solana"}
+                    </span>
+                  </div>
+                </div>
 
-                    {!connected && (
-                      <div className="bg-yellow-50 dark:bg-yellow-950/20 p-4 rounded-lg">
-                        <div className="flex items-start gap-3">
-                          <Info className="h-5 w-5 text-yellow-600 mt-0.5 flex-shrink-0" />
-                          <div className="text-sm">
-                            <div className="font-medium text-yellow-900 dark:text-yellow-100 mb-1">
-                              Wallet Not Connected
-                            </div>
-                            <div className="text-yellow-700 dark:text-yellow-200">
-                              Please connect your Solana wallet to deploy
-                            </div>
-                          </div>
+                {!connected && (
+                  <div className="bg-yellow-50 dark:bg-yellow-950/20 p-4 rounded-lg">
+                    <div className="flex items-start gap-3">
+                      <Info className="h-5 w-5 text-yellow-600 mt-0.5 flex-shrink-0" />
+                      <div className="text-sm">
+                        <div className="font-medium text-yellow-900 dark:text-yellow-100 mb-1">
+                          Wallet Not Connected
+                        </div>
+                        <div className="text-yellow-700 dark:text-yellow-200">
+                          Please connect your Solana wallet to deploy
                         </div>
                       </div>
-                    )}
-
-                    <div className="flex justify-between">
-                      <Button variant="outline" onClick={() => setCurrentStep(3)} disabled={isDeploying}>
-                        Back
-                      </Button>
-                      <Button
-                        onClick={handleDeploy}
-                        disabled={isDeploying || !connected}
-                        className="bg-purple-600 hover:bg-purple-700"
-                      >
-                        {isDeploying ? (
-                          <>
-                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                            Deploying...
-                          </>
-                        ) : (
-                          <>
-                            <Rocket className="h-4 w-4 mr-2" />
-                            Deploy Collection
-                          </>
-                        )}
-                      </Button>
                     </div>
-                  </>
+                  </div>
                 )}
+
+                <div className="flex justify-between">
+                  <Button variant="outline" onClick={() => setCurrentStep(3)} disabled={isDeploying}>
+                    Back
+                  </Button>
+                  <div className="flex gap-2">
+                    <Button
+                      onClick={handleDeploy}
+                      disabled={isDeploying || !connected || !!formData.collectionAddress}
+                      variant={formData.collectionAddress ? "outline" : "default"}
+                      className={!formData.collectionAddress ? "bg-purple-600 hover:bg-purple-700" : ""}
+                    >
+                      {isDeploying && !formData.collectionAddress ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Deploying...
+                        </>
+                      ) : formData.collectionAddress ? (
+                        <>
+                          <CheckCircle className="h-4 w-4 mr-2" />
+                          Deployed
+                        </>
+                      ) : (
+                        <>
+                          <Rocket className="h-4 w-4 mr-2" />
+                          Deploy
+                        </>
+                      )}
+                    </Button>
+                    <Button
+                      onClick={handleFinish}
+                      disabled={isDeploying || !formData.collectionAddress}
+                      className="bg-green-600 hover:bg-green-700"
+                    >
+                      {isDeploying && formData.collectionAddress ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Publishing...
+                        </>
+                      ) : (
+                        <>
+                          <CheckCircle className="h-4 w-4 mr-2" />
+                          Finish
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </div>
               </CardContent>
             </Card>
           )}

@@ -41,7 +41,7 @@ import { getAllListings, buildBuyTransaction, buildCancelListingTransaction, ver
 
 export default function MovementCollectionPage() {
   const params = useParams()
-  const collectionId = params?.id as string
+  const slug = params?.slug as string
   const { walletState } = useWalletConnection()
   const { signAndSubmitTransaction } = useWallet()
 
@@ -68,10 +68,10 @@ export default function MovementCollectionPage() {
   const [isCancelModalOpen, setIsCancelModalOpen] = useState(false)
 
   useEffect(() => {
-    if (collectionId) {
+    if (slug) {
       loadCollectionData()
     }
-  }, [collectionId])
+  }, [slug])
 
   const fetchListings = async (currentNfts?: any[]) => {
     if (!collectionAddress) return
@@ -115,7 +115,7 @@ export default function MovementCollectionPage() {
       setIsLoading(true)
 
       const actor = await getRegistryActor(null)
-      const result = await actor.get_collection(collectionId)
+      const result = await actor.get_collection_by_slug(slug)
 
       if (!result || result.length === 0) {
         toast.error("Collection not found")

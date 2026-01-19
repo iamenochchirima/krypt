@@ -11,8 +11,8 @@ import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Upload, Eye, CheckCircle, Info, Rocket, Check, Clock } from "lucide-react"
-import { saveDraft, loadDraft } from "@/lib/storage/draftStorage"
+import { Upload, Eye, CheckCircle, Info, Rocket, Check, Clock, Loader2 } from "lucide-react"
+import { saveDraft, loadDraft, deleteDraft } from "@/lib/storage/draftStorage"
 import { useDebounce } from "@/hooks/useDebounce"
 import { useAuth } from "@/providers/auth-context"
 import { getRegistryActor } from "@/providers/actors/marketplace"
@@ -34,6 +34,7 @@ interface CollectionFormData {
   collectionId?: string
   manifestUrl?: string
   canisterRecordId?: string
+  collectionAddress?: string
 }
 
 type SaveStatus = "saving" | "saved" | "idle"
@@ -229,16 +230,12 @@ export default function CreateMovementCollectionPage() {
 
   const handleDeployClick = async () => {
     if (!connected || !account) {
-      toast.error("Please connect your Movement wallet", {
-        description: "You need to connect your wallet to deploy the collection"
-      })
+      toast.error("Please connect your Movement wallet")
       return
     }
 
     if (!formData.manifestUrl) {
-      toast.error("Manifest URL not found", {
-        description: "Please upload your NFT files first"
-      })
+      toast.error("Please upload your NFT files first")
       return
     }
 
@@ -246,34 +243,21 @@ export default function CreateMovementCollectionPage() {
       setIsDeploying(true)
       setDeploymentStep("Building transaction payload...")
 
-      // Validate and prepare parameters
       const maxSupply = formData.unlimitedSupply
         ? undefined
         : parseInt(formData.maxSupply) || 0;
 
       const royaltyBps = parseInt(formData.royaltyBps) || 0;
-      const royaltyPercentage = royaltyBps / 100; // Convert basis points to percentage
+      const royaltyPercentage = royaltyBps / 100;
 
-      // Validate required fields
       if (!formData.name || !formData.manifestUrl) {
         throw new Error("Missing required fields: name and manifest URL");
       }
 
-      // Use default description if empty (Move contract requires a value)
       const description = formData.description || `${formData.name} NFT Collection`;
 
-      console.log("Form data:", {
-        name: formData.name,
-        description,
-        manifestUrl: formData.manifestUrl,
-        maxSupply,
-        royaltyPercentage,
-        unlimitedSupply: formData.unlimitedSupply,
-      });
-
-      // Build the create_collection transaction payload
       const payload = buildCreateCollectionPayload({
-        creatorAddress: account.address, // Pass address object, not string
+        creatorAddress: account.address,
         name: formData.name,
         symbol: formData.symbol,
         description,
@@ -283,110 +267,96 @@ export default function CreateMovementCollectionPage() {
         network: "testnet",
       })
 
-      console.log("Built payload:", JSON.stringify(payload, null, 2));
-
       setDeploymentStep("Waiting for wallet approval...")
 
-      // Sign and submit transaction
       const response = await signAndSubmitTransaction(payload)
 
       setDeploymentStep("Transaction submitted. Waiting for confirmation...")
 
-      // Initialize Aptos client for waiting on transaction
       const aptosConfig = new AptosConfig({
         network: Network.CUSTOM,
         fullnode: "https://testnet.movementnetwork.xyz/v1",
       })
       const aptos = new Aptos(aptosConfig)
 
-      // Try to wait for transaction confirmation (optional - don't fail if this errors)
       try {
-        const txResult = await aptos.waitForTransaction({
+        await aptos.waitForTransaction({
           transactionHash: response.hash,
         })
-        console.log("Transaction confirmed:", txResult)
       } catch (waitError) {
         console.warn("Could not wait for transaction confirmation:", waitError)
-        console.log("Transaction was submitted with hash:", response.hash)
-        // Continue anyway - the transaction was submitted successfully
       }
 
-      setDeploymentStep("Updating collection record...")
-
-      // Update the canister record to mark as deployed
-      if (formData.canisterRecordId) {
-        try {
-          const actor = await getRegistryActor(identity)
-
-          // Get the collection address
-          const collectionAddr = await getCollectionAddress(
-            account.address.toString(),
-            formData.name,
-            "testnet"
-          )
-
-          const updateResult = await actor.update_movement_stage({
-            collection_id: formData.canisterRecordId,
-            stage: { Deployed: null },
-            collection_created: [true],
-            collection_address: [collectionAddr],
-            manifest_url: [],
-          })
-
-          if ('Err' in updateResult) {
-            console.error("Failed to update collection status:", updateResult.Err)
-          } else {
-            console.log("Collection status updated successfully")
-          }
-        } catch (error) {
-          console.error("Failed to update collection record:", error)
-          // Don't fail the whole deployment if backend update fails
-        }
-      }
-
-      setDeploymentStep("Finalizing deployment...")
-
-      // Remove the draft after successful deployment
-      if (draftId) {
-        localStorage.removeItem(`movement-collection-draft-${draftId}`)
-      }
-
-      toast.success(
-        <div className="flex flex-col gap-2">
-          <p>Collection deployed successfully!</p>
-          <p className="text-sm">Collection: {formData.name}</p>
-          <a
-            href={`https://explorer.movementnetwork.xyz/txn/${response.hash}?network=testnet`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-xs underline hover:no-underline"
-          >
-            View on Explorer →
-          </a>
-        </div>,
-        {
-          duration: 10000,
-        }
+      const collectionAddr = await getCollectionAddress(
+        account.address.toString(),
+        formData.name,
+        "testnet"
       )
 
-      setIsDeploying(false)
-      setDeploymentStep("")
+      const updatedFormData = {
+        ...formData,
+        collectionAddress: collectionAddr,
+      }
+      setFormData(updatedFormData)
+      await saveDraft(draftId, updatedFormData, collectionImage || undefined, nftAssets || undefined)
 
-      // Navigate to collection management page
-      setTimeout(() => {
-        if (formData.canisterRecordId) {
-          router.push(`/nft/collections/movement/manage/${formData.canisterRecordId}`)
-        } else {
-          router.push(`/nft/collections/my`)
-        }
-      }, 1000)
+      toast.success("Collection deployed on-chain!")
+      setDeploymentStep("")
     } catch (error) {
       console.error("Deployment failed:", error)
-      setIsDeploying(false)
-      setDeploymentStep("")
       toast.error("Failed to deploy collection", {
         description: error instanceof Error ? error.message : "Please try again"
       })
+      setDeploymentStep("")
+    } finally {
+      setIsDeploying(false)
+    }
+  }
+
+  const handleFinish = async () => {
+    if (!formData.collectionAddress || !formData.canisterRecordId) {
+      toast.error("Missing required data")
+      return
+    }
+
+    setIsDeploying(true)
+    setDeploymentStep("Updating registry...")
+
+    try {
+      const actor = await getRegistryActor(identity)
+
+      const updateResult = await actor.update_movement_stage({
+        collection_id: formData.canisterRecordId,
+        stage: { Deployed: null },
+        collection_created: [true],
+        collection_address: [formData.collectionAddress],
+        manifest_url: [],
+      })
+
+      if ('Err' in updateResult) {
+        throw new Error(updateResult.Err)
+      }
+
+      setDeploymentStep("Activating collection...")
+      await actor.update_collection_status({
+        collection_id: formData.canisterRecordId,
+        status: { Active: null },
+      })
+
+      await deleteDraft(draftId)
+      toast.success("Collection published!")
+
+      const collectionResult = await actor.get_collection(formData.canisterRecordId)
+      if (!collectionResult[0]?.slug) {
+        throw new Error("Failed to retrieve collection slug")
+      }
+      router.push(`/nft/collections/movement/manage/${collectionResult[0].slug}`)
+    } catch (error: any) {
+      console.error("Finish failed:", error)
+      toast.error(`Failed to publish: ${error.message || 'Unknown error'}`)
+      setDeploymentStep("")
+    } finally {
+      setIsDeploying(false)
     }
   }
 
@@ -810,16 +780,6 @@ export default function CreateMovementCollectionPage() {
 
               {currentStep === 3 && (
                 <div className="space-y-6">
-                  <div className="text-center py-8">
-                    <Rocket className="mx-auto h-16 w-16 text-emerald-600 mb-4" />
-                    <h3 className="text-2xl font-bold mb-2">
-                      Ready to Deploy!
-                    </h3>
-                    <p className="text-muted-foreground">
-                      Review your collection and deploy to Movement
-                    </p>
-                  </div>
-
                   <div className="space-y-4">
                     <h4 className="font-semibold">Collection Summary</h4>
                     <div className="space-y-2 bg-muted/50 p-4 rounded-lg">
@@ -846,6 +806,22 @@ export default function CreateMovementCollectionPage() {
                     </div>
                   </div>
 
+                  {formData.collectionAddress && (
+                    <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
+                      <div className="flex items-start gap-3">
+                        <CheckCircle className="h-5 w-5 text-green-600 mt-0.5" />
+                        <div className="text-sm">
+                          <div className="font-medium text-green-900 dark:text-green-100 mb-1">
+                            Collection Deployed
+                          </div>
+                          <p className="font-mono text-xs break-all text-green-700 dark:text-green-300">
+                            {formData.collectionAddress}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                   <div className="space-y-4">
                     <h4 className="font-semibold">Deployment Steps</h4>
                     <div className="space-y-2">
@@ -858,10 +834,16 @@ export default function CreateMovementCollectionPage() {
                         <span className="text-sm">Collection record created</span>
                       </div>
                       <div className="flex items-center gap-2">
-                        <div className="h-4 w-4 rounded-full border-2 border-emerald-600 flex items-center justify-center">
-                          <div className="h-2 w-2 rounded-full bg-emerald-600" />
-                        </div>
-                        <span className="text-sm font-medium">Deploy collection on Movement</span>
+                        {formData.collectionAddress ? (
+                          <CheckCircle className="h-4 w-4 text-green-600" />
+                        ) : isDeploying ? (
+                          <Loader2 className="h-4 w-4 animate-spin text-emerald-600" />
+                        ) : (
+                          <div className="h-4 w-4 rounded-full border-2 border-emerald-600" />
+                        )}
+                        <span className="text-sm">
+                          {formData.collectionAddress ? "Deployed to Movement" : isDeploying ? deploymentStep : "Deploy to Movement"}
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -928,23 +910,48 @@ export default function CreateMovementCollectionPage() {
               ) : currentStep < 3 ? (
                 <Button onClick={handleNext}>Next</Button>
               ) : (
-                <Button
-                  onClick={handleDeployClick}
-                  disabled={isDeploying || !connected}
-                  className="bg-emerald-600 hover:bg-emerald-700"
-                >
-                  {isDeploying ? (
-                    <>
-                      <Upload className="mr-2 h-4 w-4 animate-spin" />
-                      {deploymentStep || "Deploying..."}
-                    </>
-                  ) : (
-                    <>
-                      <Rocket className="mr-2 h-4 w-4" />
-                      Deploy Collection
-                    </>
-                  )}
-                </Button>
+                <div className="flex gap-2">
+                  <Button
+                    onClick={handleDeployClick}
+                    disabled={isDeploying || !connected || !!formData.collectionAddress}
+                    variant={formData.collectionAddress ? "outline" : "default"}
+                    className={!formData.collectionAddress ? "bg-emerald-600 hover:bg-emerald-700" : ""}
+                  >
+                    {isDeploying && !formData.collectionAddress ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        {deploymentStep || "Deploying..."}
+                      </>
+                    ) : formData.collectionAddress ? (
+                      <>
+                        <CheckCircle className="mr-2 h-4 w-4" />
+                        Deployed
+                      </>
+                    ) : (
+                      <>
+                        <Rocket className="mr-2 h-4 w-4" />
+                        Deploy
+                      </>
+                    )}
+                  </Button>
+                  <Button
+                    onClick={handleFinish}
+                    disabled={isDeploying || !formData.collectionAddress}
+                    className="bg-green-600 hover:bg-green-700"
+                  >
+                    {isDeploying && formData.collectionAddress ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Publishing...
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle className="mr-2 h-4 w-4" />
+                        Finish
+                      </>
+                    )}
+                  </Button>
+                </div>
               )}
             </div>
           </div>

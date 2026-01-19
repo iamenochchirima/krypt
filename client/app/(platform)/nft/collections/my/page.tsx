@@ -90,21 +90,28 @@ export default function MyCollectionsPage() {
     const isMovementDeployed = 'Movement' in collection.chain_data &&
                               collection.chain_data.Movement.collection_created
 
-    if (status === 'Draft' && !hasCandyMachine && !isMovementDeployed) {
+    const isEthereumDeployed = 'Ethereum' in collection.chain_data &&
+                              collection.chain_data.Ethereum.contract_address?.[0]
+
+    if (status === 'Draft' && !hasCandyMachine && !isMovementDeployed && !isEthereumDeployed) {
       if (blockchain === 'Solana') {
         router.push('/nft/launchpad/solana')
       } else if (blockchain === 'ICP') {
         router.push('/nft/launchpad/icp')
       } else if (blockchain === 'Movement') {
         router.push('/nft/launchpad/movement')
+      } else if (blockchain === 'Ethereum') {
+        router.push('/nft/launchpad/ethereum')
       }
     } else {
       if (blockchain === 'Solana') {
-        router.push(`/nft/collections/solana/manage/${collection.id}`)
+        router.push(`/nft/collections/solana/manage/${collection.slug}`)
       } else if (blockchain === 'ICP') {
-        router.push(`/nft/collections/icp/manage/${collection.id}`)
+        router.push(`/nft/collections/icp/manage/${collection.slug}`)
       } else if (blockchain === 'Movement') {
-        router.push(`/nft/collections/movement/manage/${collection.id}`)
+        router.push(`/nft/collections/movement/manage/${collection.slug}`)
+      } else if (blockchain === 'Ethereum') {
+        router.push(`/nft/collections/ethereum/manage/${collection.slug}`)
       }
     }
   }

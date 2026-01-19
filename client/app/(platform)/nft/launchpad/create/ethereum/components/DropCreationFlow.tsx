@@ -114,7 +114,6 @@ export default function DropCreationFlow({ onBack }: DropCreationFlowProps) {
   const [totalUploadCount, setTotalUploadCount] = useState(0)
   const [isDeploying, setIsDeploying] = useState(false)
   const [deploymentStep, setDeploymentStep] = useState<string>("")
-  const [registryUpdateFailed, setRegistryUpdateFailed] = useState(false)
   const debouncedFormData = useDebounce(formData, 1000)
 
   const selectedChain = supportedChains.find(c => c.id === formData.selectedChainId)
@@ -367,7 +366,7 @@ export default function DropCreationFlow({ onBack }: DropCreationFlowProps) {
         }
 
         const canisterRecordId = createResult.Ok
-        const updatedFormData = { ...formData, canisterRecordId, collectionId: canisterRecordId }
+        const updatedFormData = { ...formData, manifestUrl, canisterRecordId, collectionId: canisterRecordId }
         setFormData(updatedFormData)
         await saveDraft(draftId, updatedFormData, collectionImage || undefined, bannerImage || undefined, nftAssets || undefined)
       } catch (error) {
@@ -457,49 +456,11 @@ export default function DropCreationFlow({ onBack }: DropCreationFlowProps) {
       setFormData(updatedFormData)
       await saveDraft(draftId, updatedFormData, collectionImage || undefined, bannerImage || undefined, nftAssets || undefined)
 
-      toast.success("Contract deployed on-chain!", {
-        description: `Contract: ${contractAddress.slice(0, 10)}...${contractAddress.slice(-8)}`,
-      })
-
-      setDeploymentStep("Updating registry...")
-      try {
-        const actor = await getRegistryActor(identity)
-
-        const updateResult = await actor.update_ethereum_stage({
-          collection_id: formData.canisterRecordId,
-          stage: { Deployed: null },
-          contract_address: [contractAddress],
-          owner_address: [address],
-          manifest_url: [formData.manifestUrl],
-          files_uploaded: [true],
-        })
-
-        if ('Err' in updateResult) {
-          console.error('Failed to update registry:', updateResult.Err)
-          setRegistryUpdateFailed(true)
-          toast.error("Registry update failed", { description: "Contract deployed but registry not updated. Click retry." })
-        } else {
-          await actor.update_collection_status({
-            collection_id: formData.canisterRecordId,
-            status: { Active: null }
-          })
-          await deleteDraft(draftId)
-          setRegistryUpdateFailed(false)
-          toast.success("Collection registered successfully!")
-        }
-      } catch (registryError) {
-        console.error('Registry update error:', registryError)
-        setRegistryUpdateFailed(true)
-        toast.error("Registry update failed", { description: "Contract deployed but registry not updated. Click retry." })
-      }
-
-      toast.success("NFT Collection Deployed!", {
+      toast.success("Contract deployed!", {
         description: `Contract: ${contractAddress.slice(0, 10)}...${contractAddress.slice(-8)}`,
         action: {
           label: "View",
-          onClick: () => {
-            window.open(getExplorerUrl(formData.selectedChainId, contractAddress), "_blank")
-          }
+          onClick: () => window.open(getExplorerUrl(formData.selectedChainId, contractAddress), "_blank")
         }
       })
     } catch (error: any) {
@@ -511,82 +472,48 @@ export default function DropCreationFlow({ onBack }: DropCreationFlowProps) {
     }
   }
 
-  const handleRetryRegistryUpdate = async () => {
-    if (!formData.contractAddress || !address) {
-      toast.error("Missing required data for retry")
+  const handleFinishClick = async () => {
+    if (!formData.contractAddress || !address || !formData.canisterRecordId) {
+      toast.error("Missing required data")
       return
     }
 
     setIsDeploying(true)
-    setDeploymentStep("Creating collection record...")
+    setDeploymentStep("Updating registry...")
 
     try {
       const actor = await getRegistryActor(identity)
 
-      const socials: [] | [Socials] = (formData.website || formData.twitter || formData.discord || formData.telegram) ? [{
-        website: formData.website ? [formData.website] : [],
-        twitter: formData.twitter ? [formData.twitter] : [],
-        discord: formData.discord ? [formData.discord] : [],
-        telegram: formData.telegram ? [formData.telegram] : [],
-      }] : []
-
-      const category: [] | [CollectionCategory] = formData.category
-        ? [{ [formData.category]: null } as CollectionCategory]
-        : []
-
-      const createResult = await actor.create_collection({
-        blockchain: { Ethereum: null },
-        name: formData.name,
-        symbol: formData.symbol,
-        description: formData.description,
-        image_url: formData.imageUrl,
-        banner_url: formData.bannerUrl ? [formData.bannerUrl] : [],
-        total_supply: formData.unlimitedSupply ? BigInt(0) : BigInt(formData.maxSupply),
-        royalty_bps: parseInt(formData.royaltyBps),
-        mint_price: [BigInt(Math.floor(parseFloat(formData.mintPrice) * 1e18))],
-        metadata: [],
-        socials,
-        category,
-        tags: [],
-        chain_data: {
-          Ethereum: {
-            deployment_stage: { Deployed: null },
-            contract_type: { ERC721: null },
-            contract_address: [formData.contractAddress],
-            chain_id: BigInt(formData.selectedChainId),
-            chain_name: selectedChain?.name || "Unknown",
-            owner_address: [address],
-            manifest_url: formData.manifestUrl ? [formData.manifestUrl] : [],
-            files_uploaded: true,
-            mint_price_wei: [BigInt(Math.floor(parseFloat(formData.mintPrice) * 1e18))],
-            max_supply: formData.unlimitedSupply ? BigInt(0) : BigInt(formData.maxSupply),
-          }
-        }
+      const updateResult = await actor.update_ethereum_stage({
+        collection_id: formData.canisterRecordId,
+        stage: { Deployed: null },
+        contract_address: [formData.contractAddress],
+        owner_address: [address],
+        manifest_url: formData.manifestUrl ? [formData.manifestUrl] : [],
+        files_uploaded: [true],
       })
 
-      if ('Err' in createResult) {
-        console.error('Failed to create collection:', createResult.Err)
-        toast.error("Failed to create collection", { description: createResult.Err })
-        return
+      if ('Err' in updateResult) {
+        throw new Error(updateResult.Err)
       }
 
-      const newRecordId = createResult.Ok
-      setDeploymentStep("Setting collection active...")
-
+      setDeploymentStep("Activating collection...")
       await actor.update_collection_status({
-        collection_id: newRecordId,
+        collection_id: formData.canisterRecordId,
         status: { Active: null }
       })
 
-      const updatedFormData = { ...formData, canisterRecordId: newRecordId, collectionId: newRecordId }
-      setFormData(updatedFormData)
       await deleteDraft(draftId)
-      setRegistryUpdateFailed(false)
-      toast.success("Collection registered successfully!")
-      router.push(`/nft/collections/ethereum/manage/${newRecordId}`)
+      toast.success("Collection published!")
+
+      const collectionResult = await actor.get_collection(formData.canisterRecordId)
+      if (!collectionResult[0]?.slug) {
+        throw new Error("Failed to retrieve collection slug")
+      }
+      router.push(`/nft/collections/ethereum/manage/${collectionResult[0].slug}`)
     } catch (error: any) {
-      console.error('Registry error:', error)
-      toast.error("Registry failed", { description: error?.message || "Check console for details" })
+      console.error('Finish error:', error)
+      toast.error("Failed to publish", { description: error?.message || "Check console for details" })
     } finally {
       setIsDeploying(false)
       setDeploymentStep("")
@@ -947,7 +874,7 @@ export default function DropCreationFlow({ onBack }: DropCreationFlowProps) {
                     </div>
                     <div className="flex items-center gap-2">
                       <CheckCircle className="h-4 w-4 text-green-600" />
-                      <span className="text-sm">Registry record created</span>
+                      <span className="text-sm">Draft saved</span>
                     </div>
                     <div className="flex items-center gap-2">
                       {formData.contractAddress ? (
@@ -955,9 +882,21 @@ export default function DropCreationFlow({ onBack }: DropCreationFlowProps) {
                       ) : isDeploying ? (
                         <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
                       ) : (
-                        <div className="h-4 w-4 rounded-full border-2 border-blue-600" />
+                        <div className="h-4 w-4 rounded-full border-2 border-muted-foreground" />
                       )}
-                      <span className="text-sm font-medium">{isDeploying ? deploymentStep : "Deploy contract"}</span>
+                      <span className="text-sm">{isDeploying && !formData.contractAddress ? deploymentStep : "Contract deployed"}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {formData.contractAddress ? (
+                        isDeploying ? (
+                          <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
+                        ) : (
+                          <div className="h-4 w-4 rounded-full border-2 border-muted-foreground" />
+                        )
+                      ) : (
+                        <div className="h-4 w-4 rounded-full border-2 border-muted-foreground" />
+                      )}
+                      <span className="text-sm">{isDeploying && formData.contractAddress ? deploymentStep : "Publish to registry"}</span>
                     </div>
                   </div>
 
@@ -966,26 +905,10 @@ export default function DropCreationFlow({ onBack }: DropCreationFlowProps) {
                       <div className="flex items-start gap-3">
                         <CheckCircle className="h-5 w-5 text-green-600 mt-0.5" />
                         <div>
-                          <div className="font-medium text-green-900 dark:text-green-100 mb-1">Deployed!</div>
+                          <div className="font-medium text-green-900 dark:text-green-100 mb-1">Contract Deployed</div>
                           <p className="font-mono text-xs break-all">{formData.contractAddress}</p>
+                          <p className="text-xs text-muted-foreground mt-1">Click Finish to publish your collection</p>
                         </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {formData.contractAddress && registryUpdateFailed && (
-                    <div className="bg-yellow-50 dark:bg-yellow-950/20 p-4 rounded-lg">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="flex items-start gap-3">
-                          <Info className="h-5 w-5 text-yellow-600 mt-0.5" />
-                          <div>
-                            <div className="font-medium text-yellow-900 dark:text-yellow-100 mb-1">Registry Update Required</div>
-                            <p className="text-sm text-yellow-700 dark:text-yellow-200">Contract deployed. Click retry to update registry.</p>
-                          </div>
-                        </div>
-                        <Button size="sm" onClick={handleRetryRegistryUpdate} disabled={isDeploying}>
-                          {isDeploying ? <Loader2 className="h-4 w-4 animate-spin" /> : "Retry Registry"}
-                        </Button>
                       </div>
                     </div>
                   )}
@@ -1014,9 +937,33 @@ export default function DropCreationFlow({ onBack }: DropCreationFlowProps) {
               ) : currentStep < 4 ? (
                 <Button onClick={handleNext}>Next</Button>
               ) : (
-                <Button onClick={handleDeployClick} disabled={isDeploying || !isConnected || !!formData.contractAddress} className="bg-blue-600 hover:bg-blue-700">
-                  {isDeploying ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />{deploymentStep}</> : formData.contractAddress ? <><CheckCircle className="mr-2 h-4 w-4" />Deployed</> : <><Rocket className="mr-2 h-4 w-4" />Deploy</>}
-                </Button>
+                <div className="flex gap-2">
+                  <Button
+                    onClick={handleDeployClick}
+                    disabled={isDeploying || !isConnected || !!formData.contractAddress}
+                    variant={formData.contractAddress ? "outline" : "default"}
+                    className={!formData.contractAddress ? "bg-blue-600 hover:bg-blue-700" : ""}
+                  >
+                    {isDeploying && !formData.contractAddress ? (
+                      <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Deploying...</>
+                    ) : formData.contractAddress ? (
+                      <><CheckCircle className="mr-2 h-4 w-4" />Deployed</>
+                    ) : (
+                      <><Rocket className="mr-2 h-4 w-4" />Deploy</>
+                    )}
+                  </Button>
+                  <Button
+                    onClick={handleFinishClick}
+                    disabled={isDeploying || !formData.contractAddress}
+                    className="bg-green-600 hover:bg-green-700"
+                  >
+                    {isDeploying && formData.contractAddress ? (
+                      <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Publishing...</>
+                    ) : (
+                      <><CheckCircle className="mr-2 h-4 w-4" />Finish</>
+                    )}
+                  </Button>
+                </div>
               )}
             </div>
           </div>

@@ -129,7 +129,7 @@ export default function ManageMovementCollectionPage() {
   const router = useRouter()
   const { isAuthenticated, identity } = useAuth()
   const { account, connected, signAndSubmitTransaction } = useMovementWallet()
-  const collectionId = params.id as string
+  const slug = params.slug as string
 
   const [collection, setCollection] = useState<Collection | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -147,12 +147,12 @@ export default function ManageMovementCollectionPage() {
   const [collectionNotFound, setCollectionNotFound] = useState(false)
 
   useEffect(() => {
-    if (!isAuthenticated || !collectionId || !identity) {
+    if (!isAuthenticated || !slug || !identity) {
       return
     }
 
     loadCollectionData()
-  }, [isAuthenticated, collectionId, identity])
+  }, [isAuthenticated, slug, identity])
 
   const loadCollectionData = async () => {
     if (!identity) {
@@ -162,7 +162,7 @@ export default function ManageMovementCollectionPage() {
       setIsLoading(true)
       const actor = await getRegistryActor(identity)
 
-      const result = await actor.get_collection(collectionId)
+      const result = await actor.get_collection_by_slug(slug)
       if (!result || result.length === 0) {
         throw new Error("Collection not found")
       }

@@ -47,6 +47,7 @@ const getTokenSymbol = (chain: string): string => {
 
 interface FormattedCollection {
   id: string
+  slug: string
   name: string
   creator: string
   items: number
@@ -89,6 +90,7 @@ export default function CollectionsPage() {
 
         return {
           id: col.id,
+          slug: col.slug,
           name: col.name,
           creator: col.creator.toText(),
           items: Number(col.total_supply),
@@ -210,7 +212,7 @@ export default function CollectionsPage() {
                   <TableRow key={collection.id} className="cursor-pointer hover:bg-muted/50">
                     <TableCell className="font-medium">{index + 1}</TableCell>
                     <TableCell>
-                      <Link href={`/nft/collections/${collection.chain}/${collection.id}`} className="flex items-center gap-3">
+                      <Link href={`/nft/collections/${collection.chain}/${collection.slug}`} className="flex items-center gap-3">
                         <div className="relative h-10 w-10 rounded-lg overflow-hidden flex-shrink-0">
                           <Image
                             src={collection.image}
@@ -281,7 +283,7 @@ export default function CollectionsPage() {
 
             return (
               <Card key={collection.id} className="group overflow-hidden transition-all hover:shadow-lg">
-                <Link href={`/nft/collections/${collection.chain}/${collection.id}`}>
+                <Link href={`/nft/collections/${collection.chain}/${collection.slug}`}>
                   <div className="relative h-32 w-full overflow-hidden">
                     <Image
                       src={collection.banner}
@@ -383,7 +385,7 @@ export default function CollectionsPage() {
                   <TableRow key={collection.id} className="cursor-pointer hover:bg-muted/50">
                     <TableCell className="font-medium">{index + 1}</TableCell>
                     <TableCell>
-                      <Link href={`/nft/collections/${collection.chain}/${collection.id}`} className="flex items-center gap-3">
+                      <Link href={`/nft/collections/${collection.chain}/${collection.slug}`} className="flex items-center gap-3">
                         <div className="relative h-10 w-10 rounded-lg overflow-hidden flex-shrink-0">
                           <Image
                             src={collection.image}
@@ -454,7 +456,7 @@ export default function CollectionsPage() {
 
             return (
               <Card key={collection.id} className="group overflow-hidden transition-all hover:shadow-lg">
-                <Link href={`/nft/collections/${collection.chain}/${collection.id}`}>
+                <Link href={`/nft/collections/${collection.chain}/${collection.slug}`}>
                   <div className="relative h-32 w-full overflow-hidden">
                     <Image
                       src={collection.banner}
@@ -569,7 +571,7 @@ export default function CollectionsPage() {
                   <TableRow key={collection.id} className="cursor-pointer hover:bg-muted/50">
                     <TableCell className="font-medium">{index + 1}</TableCell>
                     <TableCell>
-                      <Link href={`/nft/collections/${collection.chain}/${collection.id}`} className="flex items-center gap-3">
+                      <Link href={`/nft/collections/${collection.chain}/${collection.slug}`} className="flex items-center gap-3">
                         <div className="relative h-10 w-10 rounded-lg overflow-hidden flex-shrink-0">
                           <Image
                             src={collection.image}
@@ -640,7 +642,7 @@ export default function CollectionsPage() {
 
             return (
               <Card key={collection.id} className="group overflow-hidden transition-all hover:shadow-lg">
-                <Link href={`/nft/collections/${collection.chain}/${collection.id}`}>
+                <Link href={`/nft/collections/${collection.chain}/${collection.slug}`}>
                   <div className="relative h-32 w-full overflow-hidden">
                     <Image
                       src={collection.banner}

@@ -1,9 +1,6 @@
 "use client"
 
-import { useEffect, useState, useCallback } from "react"
-import { useParams, useRouter } from "next/navigation"
-import { useAuth } from "@/providers/auth-context"
-import { getRegistryActor } from "@/providers/actors/marketplace"
+import { useState, useEffect, useCallback } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -11,11 +8,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Loader2, ExternalLink, Copy, CheckCircle2, Image as ImageIcon, Sparkles, RefreshCw, Grid3X3, Settings, Wallet } from "lucide-react"
 import { toast } from "sonner"
-import { Collection } from "@/declarations/registry/registry.did"
+import { Collection, LegacyCollectionData } from "@/declarations/registry/registry.did"
 import { useWallet } from "@solana/wallet-adapter-react"
 import { createUmi } from "@metaplex-foundation/umi-bundle-defaults"
 import { mintV2, mplCandyMachine, fetchCandyMachine, fetchCandyGuard } from "@metaplex-foundation/mpl-candy-machine"
-import { setComputeUnitLimit } from "@metaplex-foundation/mpl-toolbox"
 import { transactionBuilder, some } from "@metaplex-foundation/umi"
 import { mplTokenMetadata, fetchDigitalAsset } from "@metaplex-foundation/mpl-token-metadata"
 import { publicKey as umiPublicKey, generateSigner, base58 } from "@metaplex-foundation/umi"
@@ -69,22 +65,20 @@ interface CandyMachineState {
   items?: Array<{ name: string; uri: string }>
 }
 
-export default function ManageSolanaCollectionPage() {
-  const params = useParams()
-  const router = useRouter()
-  const { isAuthenticated, identity } = useAuth()
-  const { publicKey: walletPublicKey, connected, signTransaction, signAllTransactions } = useWallet()
-  const collectionId = params.id as string
+interface LegacyManageProps {
+  collection: Collection
+  solanaData: LegacyCollectionData
+}
 
-  const [collection, setCollection] = useState<Collection | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
+export default function LegacyManage({ collection, solanaData }: LegacyManageProps) {
+  const { publicKey: walletPublicKey, connected, signTransaction, signAllTransactions } = useWallet()
+
   const [copied, setCopied] = useState<string | null>(null)
   const [candyMachineState, setCandyMachineState] = useState<CandyMachineState | null>(null)
   const [isLoadingCM, setIsLoadingCM] = useState(false)
 
   const [collectionNFTs, setCollectionNFTs] = useState<NFTAsset[]>([])
   const [isLoadingNFTs, setIsLoadingNFTs] = useState(false)
-  const [nftPage, setNftPage] = useState(1)
   const [totalNFTs, setTotalNFTs] = useState(0)
 
   const [mintModalOpen, setMintModalOpen] = useState(false)
@@ -94,15 +88,9 @@ export default function ManageSolanaCollectionPage() {
   const [manifest, setManifest] = useState<{ image?: string; name?: string; description?: string; properties?: { files?: Array<{ uri: string; type: string }> } } | null>(null)
   const [nftImages, setNftImages] = useState<Record<string, string>>({})
 
-  const solanaData = collection && 'Solana' in collection.chain_data ? collection.chain_data.Solana : null
-  const candyMachineAddress = solanaData?.candy_machine_address?.[0] || null
-  const collectionMint = solanaData?.collection_mint?.[0] || null
-  const manifestUrl = solanaData?.manifest_url?.[0] || null
-
-  useEffect(() => {
-    if (!isAuthenticated || !collectionId || !identity) return
-    loadCollectionData()
-  }, [isAuthenticated, collectionId, identity])
+  const candyMachineAddress = solanaData.candy_machine_address?.[0] || null
+  const collectionMint = solanaData.collection_mint?.[0] || null
+  const manifestUrl = solanaData.manifest_url?.[0] || null
 
   useEffect(() => {
     if (candyMachineAddress && !candyMachineState && !isLoadingCM) {
@@ -149,29 +137,6 @@ export default function ManageSolanaCollectionPage() {
     }
   }, [manifestUrl])
 
-  const loadCollectionData = async () => {
-    if (!identity) return
-    try {
-      setIsLoading(true)
-      const actor = await getRegistryActor(identity)
-      const result = await actor.get_collection(collectionId)
-      if (!result || result.length === 0) throw new Error("Collection not found")
-
-      const collectionData = result[0]
-      if (collectionData.creator.toString() !== identity.getPrincipal().toString()) {
-        toast.error("You don't have permission to manage this collection")
-        router.push('/nft/collections')
-        return
-      }
-      setCollection(collectionData)
-    } catch (error) {
-      console.error("Failed to load collection:", error)
-      toast.error("Failed to load collection data")
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
   const fetchCandyMachineState = useCallback(async () => {
     if (!candyMachineAddress) return
     try {
@@ -182,8 +147,6 @@ export default function ManageSolanaCollectionPage() {
 
       const umi = createUmi(rpcEndpoint).use(mplTokenMetadata()).use(mplCandyMachine())
       const cm = await fetchCandyMachine(umi, umiPublicKey(candyMachineAddress))
-
-      console.log('Full Candy Machine Data:', cm)
 
       const state: CandyMachineState = {
         authority: cm.authority.toString(),
@@ -229,7 +192,6 @@ export default function ManageSolanaCollectionPage() {
       const data = await response.json()
       setCollectionNFTs(data.items || [])
       setTotalNFTs(data.total || 0)
-      setNftPage(page)
     } catch (error) {
       console.error("Failed to fetch collection NFTs:", error)
     } finally {
@@ -300,16 +262,6 @@ export default function ManageSolanaCollectionPage() {
       const candyMachinePublicKey = umiPublicKey(candyMachineAddress)
       const candyMachineAccount = await fetchCandyMachine(umi, candyMachinePublicKey)
 
-      console.log('Candy Machine:', {
-        address: candyMachinePublicKey,
-        itemsLoaded: Number(candyMachineAccount.itemsLoaded),
-        itemsRedeemed: Number(candyMachineAccount.itemsRedeemed),
-        itemsAvailable: Number(candyMachineAccount.data.itemsAvailable),
-        authority: candyMachineAccount.authority.toString(),
-        collectionMint: candyMachineAccount.collectionMint.toString(),
-        mintAuthority: candyMachineAccount.mintAuthority.toString(),
-      })
-
       if (Number(candyMachineAccount.itemsLoaded) === 0) {
         throw new Error('Candy machine has no items loaded. Please add config lines first.')
       }
@@ -324,11 +276,8 @@ export default function ManageSolanaCollectionPage() {
 
       try {
         candyGuard = await fetchCandyGuard(umi, candyMachineAccount.mintAuthority)
-        console.log('Candy Guard:', candyGuard)
-        console.log('Guards:', candyGuard.guards)
 
         if (candyGuard.guards.solPayment.__option === 'Some') {
-          console.log('SOL Payment guard detected:', candyGuard.guards.solPayment.value)
           mintArgs.solPayment = some({
             destination: candyGuard.guards.solPayment.value.destination,
           })
@@ -339,11 +288,8 @@ export default function ManageSolanaCollectionPage() {
 
       setMintStep("Preparing mint...")
       const nftMint = generateSigner(umi)
-      console.log('NFT Mint keypair:', nftMint.publicKey.toString())
-      console.log('Mint args:', mintArgs)
 
       const mintBuilder = transactionBuilder()
-        .add(setComputeUnitLimit(umi, { units: 800_000 }))
         .add(
           mintV2(umi, {
             candyMachine: candyMachinePublicKey,
@@ -358,14 +304,9 @@ export default function ManageSolanaCollectionPage() {
       setMintStep("Confirm in wallet...")
       const result = await mintBuilder.sendAndConfirm(umi, confirmOptions)
 
-      console.log('Mint result:', result)
-      console.log('Signature:', result.signature)
-
       const signatureStr = typeof result.signature === 'string'
         ? result.signature
         : base58.deserialize(result.signature)[0]
-
-      console.log('Transaction URL:', `https://explorer.solana.com/tx/${signatureStr}?cluster=${SOLANA_NETWORK}`)
 
       const mintedNFT: MintedNFT = { mint: nftMint.publicKey.toString(), loading: true }
       setMintedNFTs(prev => [...prev, mintedNFT])
@@ -390,28 +331,12 @@ export default function ManageSolanaCollectionPage() {
     }
   }
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-      </div>
-    )
-  }
-
-  if (!collection) {
-    return (
-      <div className="container max-w-6xl mx-auto py-8">
-        <Card><CardContent className="py-12 text-center text-muted-foreground">Collection not found</CardContent></Card>
-      </div>
-    )
-  }
-
-  const mintPrice = solanaData?.candy_machine_config?.[0]?.price
-    ? Number(solanaData.candy_machine_config[0].price) / 1_000_000_000
+  const mintPrice = solanaData.candy_machine_address?.[0]
+    ? Number(collection.mint_price?.[0] || 0) / 1_000_000_000
     : 0
 
   return (
-    <div className="container max-w-6xl mx-auto py-8 space-y-8">
+    <div className="space-y-8">
       {/* Header */}
       <div className="flex flex-col md:flex-row gap-6">
         {manifest?.image ? (
@@ -430,7 +355,7 @@ export default function ManageSolanaCollectionPage() {
             <div className="flex items-center gap-3 mb-2">
               <h1 className="text-3xl font-bold">{collection.name}</h1>
               <Badge variant="secondary">{collection.symbol}</Badge>
-              <Badge className="bg-purple-500/10 text-purple-500 border-purple-500/20">Solana</Badge>
+              <Badge className="bg-purple-500/10 text-purple-500 border-purple-500/20">Legacy</Badge>
             </div>
             <p className="text-muted-foreground max-w-2xl">{collection.description}</p>
           </div>
@@ -488,7 +413,7 @@ export default function ManageSolanaCollectionPage() {
       <Tabs defaultValue="nfts" className="space-y-6">
         <TabsList>
           <TabsTrigger value="nfts" className="gap-2"><Grid3X3 className="h-4 w-4" />NFTs ({totalNFTs})</TabsTrigger>
-          <TabsTrigger value="details" className="gap-2"><Settings className="h-4 w-4" />Details</TabsTrigger>
+          <TabsTrigger value="details" className="gap-2"><Settings className="h-4 w-4" />Candy Machine</TabsTrigger>
         </TabsList>
 
         <TabsContent value="nfts" className="space-y-4">
@@ -532,7 +457,7 @@ export default function ManageSolanaCollectionPage() {
         <TabsContent value="details" className="space-y-4">
           <div className="grid md:grid-cols-2 gap-4">
             <Card>
-              <CardHeader><CardTitle className="text-lg">Candy Machine Inspection</CardTitle></CardHeader>
+              <CardHeader><CardTitle className="text-lg">Candy Machine</CardTitle></CardHeader>
               <CardContent className="space-y-4">
                 {candyMachineAddress && (
                   <div>
@@ -569,7 +494,7 @@ export default function ManageSolanaCollectionPage() {
 
                     {candyMachineState.itemsLoaded === 0 && (
                       <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-sm text-red-500">
-                        <strong>Problem:</strong> No items loaded! Config lines were not inserted during deployment. You need to redeploy or manually add config lines.
+                        <strong>Problem:</strong> No items loaded! Config lines were not inserted during deployment.
                       </div>
                     )}
 
@@ -597,10 +522,6 @@ export default function ManageSolanaCollectionPage() {
                           ))}
                         </div>
                       </div>
-                    )}
-
-                    {candyMachineState.items?.length === 0 && candyMachineState.itemsLoaded === 0 && (
-                      <div className="text-xs text-muted-foreground">No config lines found. The candy machine is empty.</div>
                     )}
                   </div>
                 )}
@@ -654,7 +575,9 @@ export default function ManageSolanaCollectionPage() {
                 <div className="font-medium">Price</div>
                 <div className="text-2xl font-bold">{mintPrice} SOL</div>
               </div>
-              <img src={collection.image_url} alt={collection.name} className="w-16 h-16 rounded-lg object-cover" />
+              {collection.image_url && (
+                <img src={collection.image_url} alt={collection.name} className="w-16 h-16 rounded-lg object-cover" />
+              )}
             </div>
 
             <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
@@ -697,7 +620,6 @@ export default function ManageSolanaCollectionPage() {
                     </div>
                   ))}
                 </div>
-                <div className="text-xs text-muted-foreground">Click to view on Solana Explorer</div>
               </div>
             )}
 
