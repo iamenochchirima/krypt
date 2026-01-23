@@ -16,7 +16,7 @@ import { saveDraft, loadDraft, deleteDraft } from "@/lib/storage/draftStorage"
 import { useDebounce } from "@/hooks/useDebounce"
 import { useAuth } from "@/providers/auth-context"
 import { getRegistryActor } from "@/providers/actors/marketplace"
-import type { Socials, CollectionCategory } from "@/declarations/registry/registry.did"
+import type { Socials, CollectionCategory, InitialSale } from "@/declarations/registry/registry.did"
 import { uploadToStorage, StorageProvider } from "@/lib/storage"
 import { toast } from "sonner"
 import { useWallet } from "@solana/wallet-adapter-react"
@@ -350,6 +350,29 @@ export default function LegacyCreationFlow({ onBack }: LegacyCreationFlowProps) 
 
         const canisterRecordId = createResult.Ok
 
+        // Set initial sale data for launchpad
+        const startDateTime = new Date(`${formData.saleStartDate}T${formData.saleStartTime}`)
+        const startTimeNs = BigInt(startDateTime.getTime()) * BigInt(1000000)
+
+        const initialSale: InitialSale = {
+          start_time: startTimeNs,
+          end_time: formData.hasEndTime && formData.saleEndDate && formData.saleEndTime
+            ? [BigInt(new Date(`${formData.saleEndDate}T${formData.saleEndTime}`).getTime()) * BigInt(1000000)]
+            : [],
+          public_start_time: [],
+          ended: false,
+          config: {
+            Solana: {
+              sale_type: formData.unlimitedSupply ? { OpenEdition: null } : { FixedPrice: null }
+            }
+          }
+        }
+
+        await actor.update_initial_sale({
+          collection_id: canisterRecordId,
+          initial_sale: [initialSale]
+        })
+
         const updatedFormData = {
           ...formData,
           manifestUrl,
@@ -359,8 +382,6 @@ export default function LegacyCreationFlow({ onBack }: LegacyCreationFlowProps) 
         setFormData(updatedFormData)
 
         await saveDraft(draftId, updatedFormData, collectionImage || undefined, bannerImage || undefined, nftAssets || undefined)
-
-        console.log("Collection record created:", canisterRecordId)
       } catch (error) {
         console.error("Failed to create collection record:", error)
         toast.error("Failed to create collection record", {

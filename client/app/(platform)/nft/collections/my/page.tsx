@@ -145,53 +145,38 @@ export default function MyCollectionsPage() {
     }, [collection, blockchain])
 
     return (
-      <Card className="overflow-hidden hover:shadow-lg transition-shadow">
-        <div className="aspect-square relative">
+      <Card className="overflow-hidden hover:shadow-md transition-shadow">
+        <div className="aspect-[4/3] relative">
           <img
             src={bannerImage || collection.image_url}
             alt={collection.name}
             className="w-full h-full object-cover"
           />
-          <div className="absolute top-2 right-2 flex gap-2">
-            <Badge variant="secondary">{blockchain}</Badge>
-            <Badge variant={getStatusVariant(collection.status)}>{status}</Badge>
+          <div className="absolute top-1.5 right-1.5 flex gap-1">
+            <Badge variant="secondary" className="text-xs px-1.5 py-0">{blockchain}</Badge>
+            <Badge variant={getStatusVariant(collection.status)} className="text-xs px-1.5 py-0">{status}</Badge>
           </div>
         </div>
-        <CardHeader>
-          <div className="flex items-start justify-between">
-            <div className="flex-1">
-              <CardTitle className="text-lg">{collection.name}</CardTitle>
-              <CardDescription className="mt-1 line-clamp-2">
-                {collection.description}
-              </CardDescription>
-            </div>
+        <CardContent className="p-3">
+          <CardTitle className="text-sm font-semibold truncate">{collection.name}</CardTitle>
+          <div className="flex items-center justify-between mt-2 text-xs text-muted-foreground">
+            <span>{collection.symbol}</span>
+            <span>{collection.total_supply.toString()} items</span>
           </div>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <p className="text-sm text-muted-foreground">Supply</p>
-              <p className="text-lg font-semibold">{collection.total_supply.toString()}</p>
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Symbol</p>
-              <p className="text-lg font-semibold">{collection.symbol}</p>
-            </div>
-          </div>
-
-          <div className="flex gap-2">
+          <div className="flex gap-1.5 mt-3">
             <Button
-              className="flex-1"
+              size="sm"
+              className="flex-1 h-8 text-xs"
               onClick={() => handleManageCollection(collection)}
             >
               {isDraft ? (
                 <>
-                  <Rocket className="h-4 w-4 mr-2" />
+                  <Rocket className="h-3 w-3 mr-1" />
                   Continue
                 </>
               ) : (
                 <>
-                  <Settings className="h-4 w-4 mr-2" />
+                  <Settings className="h-3 w-3 mr-1" />
                   Manage
                 </>
               )}
@@ -199,7 +184,8 @@ export default function MyCollectionsPage() {
             {!isDraft && blockchain === 'Solana' && 'Solana' in collection.chain_data && collection.chain_data.Solana.candy_machine_address?.[0] && (
               <Button
                 variant="outline"
-                size="icon"
+                size="sm"
+                className="h-8 w-8 p-0"
                 onClick={() => {
                   if ('Solana' in collection.chain_data) {
                     const address = collection.chain_data.Solana.candy_machine_address?.[0]
@@ -209,13 +195,14 @@ export default function MyCollectionsPage() {
                   }
                 }}
               >
-                <ExternalLink className="h-4 w-4" />
+                <ExternalLink className="h-3 w-3" />
               </Button>
             )}
             {!isDraft && blockchain === 'Movement' && 'Movement' in collection.chain_data && collection.chain_data.Movement.collection_address?.[0] && (
               <Button
                 variant="outline"
-                size="icon"
+                size="sm"
+                className="h-8 w-8 p-0"
                 onClick={() => {
                   if ('Movement' in collection.chain_data) {
                     const address = collection.chain_data.Movement.collection_address?.[0]
@@ -226,7 +213,7 @@ export default function MyCollectionsPage() {
                   }
                 }}
               >
-                <ExternalLink className="h-4 w-4" />
+                <ExternalLink className="h-3 w-3" />
               </Button>
             )}
           </div>
@@ -338,7 +325,7 @@ export default function MyCollectionsPage() {
               </CardContent>
             </Card>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
               {filterByBlockchain(collections).map((collection) => (
                 <CollectionCard key={collection.id} collection={collection} />
               ))}
@@ -354,7 +341,7 @@ export default function MyCollectionsPage() {
               </CardContent>
             </Card>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
               {filterByBlockchain(drafts).map((collection) => (
                 <CollectionCard key={collection.id} collection={collection} isDraft />
               ))}

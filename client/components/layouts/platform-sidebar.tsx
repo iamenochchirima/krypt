@@ -29,6 +29,11 @@ import {
   GraduationCap,
   Award,
   BarChart3,
+  Bitcoin,
+  Flame,
+  FileCode,
+  Sparkles,
+  Compass,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -52,6 +57,16 @@ interface NavSection {
 }
 
 const navigationConfig: Record<string, NavSection> = {
+  "btc-assets": {
+    title: "BTC Assets",
+    basePath: "/btc-assets",
+    items: [
+      { label: "Discover", href: "/btc-assets", icon: Compass },
+      { label: "Runes", href: "/btc-assets/runes", icon: Flame },
+      { label: "Ordinals", href: "/btc-assets/ordinals", icon: Sparkles },
+      { label: "BRC-20", href: "/btc-assets/brc20", icon: FileCode },
+    ],
+  },
   nft: {
     title: "NFTs",
     basePath: "/nft",
@@ -287,28 +302,21 @@ export function PlatformSidebar() {
                 ))}
               </nav>
 
-              {/* Create Button - Only show in NFT section */}
-              {activeSection.basePath === "/nft" && (
+              {(activeSection.basePath === "/nft" || activeSection.basePath === "/btc-assets") && (
                 <div className={cn("mt-4", collapsed ? "px-1" : "px-2")}>
                   {collapsed ? (
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <Link href="/nft/launchpad/create">
-                          <Button
-                            size="icon"
-                            variant="secondary"
-                            className="w-full"
-                          >
+                        <Link href={activeSection.basePath === "/btc-assets" ? "/btc-assets/create" : "/nft/launchpad/create"}>
+                          <Button size="icon" variant="secondary" className="w-full">
                             <Plus className="h-5 w-5" />
                           </Button>
                         </Link>
                       </TooltipTrigger>
-                      <TooltipContent side="right">
-                        Create
-                      </TooltipContent>
+                      <TooltipContent side="right">Create</TooltipContent>
                     </Tooltip>
                   ) : (
-                    <Link href="/nft/launchpad/create">
+                    <Link href={activeSection.basePath === "/btc-assets" ? "/btc-assets/create" : "/nft/launchpad/create"}>
                       <Button variant="secondary" className="w-full gap-2">
                         <Plus className="h-4 w-4" />
                         Create

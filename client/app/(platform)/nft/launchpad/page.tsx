@@ -7,8 +7,10 @@ import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
-import { Clock, Flame, CheckCircle, Calendar, Plus, ArrowRight } from "lucide-react"
+import { Clock, Flame, CheckCircle, Calendar, Plus, ArrowRight, Loader2 } from "lucide-react"
 import { getChainById } from "@/types/chains"
+import { getRegistryActor } from "@/providers/actors/marketplace"
+import type { Collection, Blockchain, InitialSale } from "@/declarations/registry/registry.did"
 
 type SaleType = "FixedPrice" | "OpenEdition" | "DutchAuction"
 type SaleStatus = "upcoming" | "live" | "ended"
@@ -34,161 +36,88 @@ interface SaleCollection {
   whitelistOnly?: boolean
 }
 
-export const MOCK_SALES: SaleCollection[] = [
-  {
-    id: "1",
-    slug: "cosmic-dreamers",
-    name: "Cosmic Dreamers",
-    description: "A collection of 5,000 unique cosmic beings exploring the universe.",
-    image: "https://images.unsplash.com/photo-1634017839464-5c339ez0f4?w=400",
-    banner: "https://images.unsplash.com/photo-1462331940025-496dfbfc7564?w=800",
-    chain: "solana",
-    creator: "CosmicArt",
-    price: 1.5,
-    priceSymbol: "SOL",
-    totalSupply: 5000,
-    minted: 3247,
-    startTime: Date.now() - 3600000,
-    endTime: Date.now() + 86400000,
-    publicStartTime: Date.now() - 1800000,
-    saleType: "FixedPrice",
-    status: "live",
-  },
-  {
-    id: "2",
-    slug: "neon-punks",
-    name: "Neon Punks",
-    description: "10,000 cyberpunk characters with neon aesthetics.",
-    image: "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400",
-    banner: "https://images.unsplash.com/photo-1550745165-9bc0b252726f?w=800",
-    chain: "solana",
-    creator: "NeonLabs",
-    price: 2.0,
-    priceSymbol: "SOL",
-    totalSupply: 10000,
-    minted: 8921,
-    startTime: Date.now() - 7200000,
-    endTime: null,
-    publicStartTime: Date.now() - 3600000,
-    saleType: "FixedPrice",
-    status: "live",
-  },
-  {
-    id: "3",
-    slug: "abstract-minds",
-    name: "Abstract Minds",
-    description: "Limited edition abstract art collection.",
-    image: "https://images.unsplash.com/photo-1541701494587-cb58502866ab?w=400",
-    banner: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=800",
-    chain: "ethereum",
-    creator: "AbstractDAO",
-    price: 0.08,
-    priceSymbol: "ETH",
-    totalSupply: 0,
-    minted: 1247,
-    startTime: Date.now() - 1800000,
-    endTime: Date.now() + 43200000,
-    publicStartTime: null,
-    saleType: "OpenEdition",
-    status: "live",
-  },
-  {
-    id: "4",
-    slug: "galactic-warriors",
-    name: "Galactic Warriors",
-    description: "Epic warriors from across the galaxy.",
-    image: "https://images.unsplash.com/photo-1614728263952-84ea256f9679?w=400",
-    banner: "https://images.unsplash.com/photo-1506318137071-a8e063b4bec0?w=800",
-    chain: "solana",
-    creator: "GalacticStudios",
-    price: 3.0,
-    priceSymbol: "SOL",
-    totalSupply: 3333,
+const blockchainToChain = (blockchain: Blockchain): string => {
+  if ('ICP' in blockchain) return 'icp'
+  if ('Ethereum' in blockchain) return 'ethereum'
+  if ('Solana' in blockchain) return 'solana'
+  if ('Movement' in blockchain) return 'movement'
+  return 'icp'
+}
+
+const getTokenSymbol = (chain: string): string => {
+  const symbols: Record<string, string> = {
+    'movement': 'MOVE',
+    'solana': 'SOL',
+    'ethereum': 'ETH',
+    'icp': 'ICP',
+  }
+  return symbols[chain] || chain.toUpperCase()
+}
+
+const getSaleType = (sale: InitialSale | undefined, blockchain: Blockchain): SaleType => {
+  if (!sale) return "FixedPrice"
+  const config = sale.config
+
+  if ('Solana' in config) {
+    const saleType = config.Solana.sale_type
+    if ('OpenEdition' in saleType) return "OpenEdition"
+    if ('DutchAuction' in saleType) return "DutchAuction"
+    return "FixedPrice"
+  }
+  if ('Ethereum' in config) {
+    const saleType = config.Ethereum.sale_type
+    if ('OpenEdition' in saleType) return "OpenEdition"
+    if ('DutchAuction' in saleType) return "DutchAuction"
+    return "FixedPrice"
+  }
+  if ('ICP' in config) {
+    const saleType = config.ICP.sale_type
+    if ('OpenEdition' in saleType) return "OpenEdition"
+    return "FixedPrice"
+  }
+  if ('Movement' in config) {
+    const saleType = config.Movement.sale_type
+    if ('OpenEdition' in saleType) return "OpenEdition"
+    return "FixedPrice"
+  }
+  return "FixedPrice"
+}
+
+const transformCollection = (col: Collection, status: SaleStatus): SaleCollection => {
+  const chain = blockchainToChain(col.blockchain)
+  const tokenSymbol = getTokenSymbol(chain)
+  const sale = col.initial_sale[0]
+
+  let priceNum = 0
+  if (col.mint_price[0]) {
+    if (chain === 'ethereum') {
+      priceNum = Number(col.mint_price[0]) / 1e18
+    } else {
+      priceNum = Number(col.mint_price[0]) / 1e8
+    }
+  }
+
+  return {
+    id: col.id,
+    slug: col.slug,
+    name: col.name,
+    description: col.description,
+    image: col.image_url,
+    banner: col.banner_url[0] || col.image_url,
+    chain,
+    creator: col.creator.toText().slice(0, 8) + '...',
+    price: priceNum,
+    priceSymbol: tokenSymbol,
+    totalSupply: Number(col.total_supply),
     minted: 0,
-    startTime: Date.now() + 7200000,
-    endTime: Date.now() + 172800000,
-    publicStartTime: Date.now() + 10800000,
-    saleType: "FixedPrice",
-    status: "upcoming",
-    whitelistOnly: true,
-  },
-  {
-    id: "5",
-    slug: "digital-fauna",
-    name: "Digital Fauna",
-    description: "Rare digital creatures from an alternate dimension.",
-    image: "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=400",
-    banner: "https://images.unsplash.com/photo-1511497584788-876760111969?w=800",
-    chain: "movement",
-    creator: "FaunaLabs",
-    price: 50,
-    priceSymbol: "MOVE",
-    totalSupply: 7777,
-    minted: 0,
-    startTime: Date.now() + 86400000,
-    endTime: Date.now() + 259200000,
-    publicStartTime: Date.now() + 90000000,
-    saleType: "FixedPrice",
-    status: "upcoming",
-  },
-  {
-    id: "6",
-    slug: "pixel-legends",
-    name: "Pixel Legends",
-    description: "Retro pixel art legends collection.",
-    image: "https://images.unsplash.com/photo-1550745165-9bc0b252726f?w=400",
-    banner: "https://images.unsplash.com/photo-1511512578047-dfb367046420?w=800",
-    chain: "solana",
-    creator: "PixelMaster",
-    price: 0.5,
-    priceSymbol: "SOL",
-    totalSupply: 2000,
-    minted: 0,
-    startTime: Date.now() + 259200000,
-    endTime: null,
-    publicStartTime: Date.now() + 262800000,
-    saleType: "DutchAuction",
-    status: "upcoming",
-  },
-  {
-    id: "7",
-    slug: "ancient-artifacts",
-    name: "Ancient Artifacts",
-    description: "Mystical artifacts from ancient civilizations.",
-    image: "https://images.unsplash.com/photo-1461360370896-922624d12a74?w=400",
-    banner: "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=800",
-    chain: "ethereum",
-    creator: "ArtifactDAO",
-    price: 0.15,
-    priceSymbol: "ETH",
-    totalSupply: 4444,
-    minted: 4444,
-    startTime: Date.now() - 172800000,
-    endTime: Date.now() - 86400000,
-    publicStartTime: null,
-    saleType: "FixedPrice",
-    status: "ended",
-  },
-  {
-    id: "8",
-    slug: "cyber-samurai",
-    name: "Cyber Samurai",
-    description: "Futuristic samurai warriors.",
-    image: "https://images.unsplash.com/photo-1578632767115-351597cf2477?w=400",
-    banner: "https://images.unsplash.com/photo-1519681393784-d120267933ba?w=800",
-    chain: "solana",
-    creator: "SamuraiLabs",
-    price: 2.5,
-    priceSymbol: "SOL",
-    totalSupply: 8888,
-    minted: 8888,
-    startTime: Date.now() - 259200000,
-    endTime: Date.now() - 172800000,
-    publicStartTime: null,
-    saleType: "FixedPrice",
-    status: "ended",
-  },
-]
+    startTime: sale ? Number(sale.start_time) / 1000000 : Date.now(),
+    endTime: sale?.end_time[0] ? Number(sale.end_time[0]) / 1000000 : null,
+    publicStartTime: sale?.public_start_time[0] ? Number(sale.public_start_time[0]) / 1000000 : null,
+    saleType: getSaleType(sale, col.blockchain),
+    status,
+    whitelistOnly: sale?.public_start_time[0] ? Number(sale.public_start_time[0]) > Date.now() * 1000000 : false,
+  }
+}
 
 function useCountdown(targetTime: number) {
   const [timeLeft, setTimeLeft] = useState(calculateTimeLeft(targetTime))
@@ -288,7 +217,7 @@ export function LiveSaleCard({ sale }: { sale: SaleCollection }) {
               </div>
             </div>
           </div>
-          {!isOpenEdition && (
+          {!isOpenEdition && sale.totalSupply > 0 && (
             <div className="mb-3">
               <Progress value={mintedPercent} className="h-2" />
               <div className="text-xs text-muted-foreground mt-1">{mintedPercent.toFixed(1)}% minted</div>
@@ -371,7 +300,7 @@ export function UpcomingSaleCard({ sale }: { sale: SaleCollection }) {
 }
 
 export function PastSaleCard({ sale }: { sale: SaleCollection }) {
-  const soldOut = sale.minted >= sale.totalSupply
+  const soldOut = sale.totalSupply > 0 && sale.minted >= sale.totalSupply
   const chain = getChainById(sale.chain)
 
   return (
@@ -407,7 +336,12 @@ export function PastSaleCard({ sale }: { sale: SaleCollection }) {
             </div>
             <div>
               <div className="text-xs text-muted-foreground">Minted</div>
-              <div className="font-medium">{sale.minted.toLocaleString()} / {sale.totalSupply.toLocaleString()}</div>
+              <div className="font-medium">
+                {sale.totalSupply > 0
+                  ? `${sale.minted.toLocaleString()} / ${sale.totalSupply.toLocaleString()}`
+                  : sale.minted.toLocaleString()
+                }
+              </div>
             </div>
           </div>
         </div>
@@ -434,9 +368,43 @@ function SectionHeader({ title, icon: Icon, count, href }: { title: string; icon
 }
 
 export default function LaunchpadPage() {
-  const liveSales = MOCK_SALES.filter(s => s.status === "live")
-  const upcomingSales = MOCK_SALES.filter(s => s.status === "upcoming")
-  const pastSales = MOCK_SALES.filter(s => s.status === "ended")
+  const [liveSales, setLiveSales] = useState<SaleCollection[]>([])
+  const [upcomingSales, setUpcomingSales] = useState<SaleCollection[]>([])
+  const [pastSales, setPastSales] = useState<SaleCollection[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+
+  useEffect(() => {
+    fetchSales()
+  }, [])
+
+  const fetchSales = async () => {
+    try {
+      setIsLoading(true)
+      const actor = await getRegistryActor(null)
+
+      const [live, upcoming, ended] = await Promise.all([
+        actor.get_live_sales(0, 10),
+        actor.get_upcoming_sales(0, 10),
+        actor.get_ended_sales(0, 10),
+      ])
+
+      setLiveSales(live.map((col: Collection) => transformCollection(col, "live")))
+      setUpcomingSales(upcoming.map((col: Collection) => transformCollection(col, "upcoming")))
+      setPastSales(ended.map((col: Collection) => transformCollection(col, "ended")))
+    } catch (error) {
+      console.error("Failed to fetch sales:", error)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-10">

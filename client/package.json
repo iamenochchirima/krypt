@@ -29,6 +29,7 @@
     "@metaplex-foundation/mpl-core": "^1.7.0",
     "@metaplex-foundation/mpl-core-candy-machine": "^0.3.0",
     "@metaplex-foundation/mpl-token-metadata": "^3.4.0",
+    "@metaplex-foundation/mpl-toolbox": "^0.10.0",
     "@metaplex-foundation/umi": "^1.4.1",
     "@metaplex-foundation/umi-bundle-defaults": "^1.4.1",
     "@metaplex-foundation/umi-signer-wallet-adapters": "^1.4.1",
@@ -92,6 +93,7 @@
     "react-confetti": "^6.4.0",
     "react-day-picker": "latest",
     "react-dom": "^19",
+    "react-dropzone": "^14.3.8",
     "react-hook-form": "latest",
     "react-quill": "^2.0.0",
     "react-redux": "latest",
@@ -102,6 +104,7 @@
     "tailwind-merge": "^2.5.5",
     "tailwindcss-animate": "^1.0.7",
     "vaul": "latest",
+    "viem": "^2.44.4",
     "wagmi": "2.12.5",
     "web3.storage": "^4.5.5",
     "zod": "^3.24.1"

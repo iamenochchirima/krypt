@@ -15,7 +15,7 @@ import { saveDraft, loadDraft, deleteDraft } from "@/lib/storage/draftStorage"
 import { useDebounce } from "@/hooks/useDebounce"
 import { useAuth } from "@/providers/auth-context"
 import { getRegistryActor } from "@/providers/actors/marketplace"
-import type { Socials, CollectionCategory } from "@/declarations/registry/registry.did"
+import type { Socials, CollectionCategory, InitialSale } from "@/declarations/registry/registry.did"
 import { uploadToStorage, StorageProvider } from "@/lib/storage"
 import { toast } from "sonner"
 import { useWallet } from "@solana/wallet-adapter-react"
@@ -109,7 +109,6 @@ export default function CompressedCreationFlow({ onBack }: CompressedCreationFlo
   const [totalUploadCount, setTotalUploadCount] = useState(0)
   const [isDeploying, setIsDeploying] = useState(false)
   const [deploymentStep, setDeploymentStep] = useState<string>("")
-  const [mintProgress, setMintProgress] = useState({ current: 0, total: 0 })
 
   const debouncedFormData = useDebounce(formData, 1000)
 
@@ -311,11 +310,30 @@ export default function CompressedCreationFlow({ onBack }: CompressedCreationFlo
         }
 
         const canisterRecordId = createResult.Ok
+
+        // Set initial sale data for launchpad (starts immediately for compressed NFTs)
+        const startTimeNs = BigInt(Date.now()) * BigInt(1000000)
+
+        const initialSale: InitialSale = {
+          start_time: startTimeNs,
+          end_time: [],
+          public_start_time: [],
+          ended: false,
+          config: {
+            Solana: {
+              sale_type: { FixedPrice: null }
+            }
+          }
+        }
+
+        await registryActor.update_initial_sale({
+          collection_id: canisterRecordId,
+          initial_sale: [initialSale]
+        })
+
         const updatedFormData = { ...formData, manifestUrl, canisterRecordId, collectionId: canisterRecordId }
         setFormData(updatedFormData)
         await saveDraft(draftId, updatedFormData, collectionImage || undefined, bannerImage || undefined, nftAssets || undefined)
-
-        console.log("Collection record created:", canisterRecordId)
       } catch (error) {
         console.error("Failed to create collection record:", error)
         toast.error("Failed to create collection record", {
@@ -783,7 +801,7 @@ export default function CompressedCreationFlow({ onBack }: CompressedCreationFlo
                   <div className="border-2 border-dashed rounded-lg p-6 text-center">
                     <Upload className="h-10 w-10 mx-auto text-muted-foreground mb-2" />
                     <p className="text-sm text-muted-foreground mb-2">
-                      Upload your NFT images - all will be minted as cNFTs
+                      Upload your NFT images - metadata will be prepared for minting
                     </p>
                     <Input
                       type="file"
@@ -793,7 +811,7 @@ export default function CompressedCreationFlow({ onBack }: CompressedCreationFlo
                     />
                     {nftAssets && (
                       <p className="mt-2 text-sm text-green-600">
-                        {nftAssets.length} files selected - all will be minted
+                        {nftAssets.length} files selected - ready for minting on manage page
                       </p>
                     )}
                   </div>
@@ -904,7 +922,7 @@ export default function CompressedCreationFlow({ onBack }: CompressedCreationFlo
                       <CheckCircle className="h-5 w-5 text-green-600 mt-0.5" />
                       <div className="text-sm">
                         <div className="font-medium text-green-900 dark:text-green-100 mb-2">
-                          Collection Deployed - Ready for minting
+                          Infrastructure Deployed - Finish to manage and mint NFTs
                         </div>
                         <div className="space-y-1">
                           <div>
@@ -958,18 +976,15 @@ export default function CompressedCreationFlow({ onBack }: CompressedCreationFlo
                       {formData.merkleTreeAddress ? "Deployed to Solana" : isDeploying ? deploymentStep : "Deploy to Solana"}
                     </span>
                   </div>
-                  {isDeploying && mintProgress.total > 0 && (
-                    <Progress value={(mintProgress.current / mintProgress.total) * 100} className="h-2" />
-                  )}
                 </div>
 
                 {!formData.merkleTreeAddress && (
                   <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
                     <div className="flex items-start gap-2">
-                      <CheckCircle className="h-5 w-5 text-green-600 mt-0.5" />
+                      <Info className="h-5 w-5 text-green-600 mt-0.5" />
                       <div className="text-sm text-green-800 dark:text-green-200">
-                        <p className="font-medium">Ultra low cost minting</p>
-                        <p className="mt-1">Each NFT costs ~0.00005 SOL to mint after tree creation!</p>
+                        <p className="font-medium">Deploy creates the infrastructure</p>
+                        <p className="mt-1">This will create your Merkle tree and collection. NFTs can be minted from the manage page after deployment (~0.00005 SOL per mint).</p>
                       </div>
                     </div>
                   </div>
@@ -1015,7 +1030,7 @@ export default function CompressedCreationFlow({ onBack }: CompressedCreationFlo
                       ) : (
                         <>
                           <Rocket className="h-4 w-4 mr-2" />
-                          Deploy & Mint
+                          Deploy
                         </>
                       )}
                     </Button>

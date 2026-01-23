@@ -15,6 +15,9 @@ import {
   Gift,
   Users,
   LucideIcon,
+  Flame,
+  Sparkles,
+  FileCode,
 } from "lucide-react"
 
 export interface ServiceItem {
@@ -51,16 +54,18 @@ export const services: Service[] = [
     ],
   },
   {
-    id: "bitcoin",
-    title: "Bitcoin Assets",
-    description: "Ordinals, Runes, and inscriptions on Bitcoin.",
+    id: "btc-assets",
+    title: "BTC Assets",
+    description: "Fast Bitcoin Runes trading with 2-second finality on ICP.",
     icon: Bitcoin,
     color: "text-orange-500",
     bgColor: "bg-orange-500/10",
-    link: "/bitcoin/assets",
+    link: "/btc-assets",
     items: [
-      { name: "Ordinals", href: "/bitcoin/ordinals", icon: ImageIcon },
-      { name: "Runes", href: "/bitcoin/runes", icon: Coins },
+      { name: "Discover", href: "/btc-assets", icon: TrendingUp },
+      { name: "Runes", href: "/btc-assets/runes", icon: Flame },
+      { name: "Ordinals", href: "/btc-assets/ordinals", icon: Sparkles },
+      { name: "BRC-20", href: "/btc-assets/brc20", icon: FileCode },
     ],
   },
   {

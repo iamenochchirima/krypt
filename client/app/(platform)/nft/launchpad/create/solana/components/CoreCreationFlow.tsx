@@ -16,13 +16,14 @@ import { saveDraft, loadDraft, deleteDraft } from "@/lib/storage/draftStorage"
 import { useDebounce } from "@/hooks/useDebounce"
 import { useAuth } from "@/providers/auth-context"
 import { getRegistryActor } from "@/providers/actors/marketplace"
-import type { Socials, CollectionCategory } from "@/declarations/registry/registry.did"
+import type { Socials, CollectionCategory, InitialSale } from "@/declarations/registry/registry.did"
 import { uploadToStorage, StorageProvider } from "@/lib/storage"
 import { toast } from "sonner"
 import { useWallet } from "@solana/wallet-adapter-react"
 import { createUmi } from "@metaplex-foundation/umi-bundle-defaults"
-import { mplCore, createCollection, create, fetchCollection, ruleSet } from "@metaplex-foundation/mpl-core"
-import { generateSigner } from "@metaplex-foundation/umi"
+import { mplCore, createCollection, ruleSet } from "@metaplex-foundation/mpl-core"
+import { mplCandyMachine as mplCoreCandyMachine, create as createCoreCandyMachine, addConfigLines, fetchCandyMachine } from "@metaplex-foundation/mpl-core-candy-machine"
+import { generateSigner, some, sol, dateTime, percentAmount } from "@metaplex-foundation/umi"
 import { walletAdapterIdentity } from "@metaplex-foundation/umi-signer-wallet-adapters"
 
 interface CollectionFormData {
@@ -113,6 +114,8 @@ export default function CoreCreationFlow({ onBack }: CoreCreationFlowProps) {
   const [isLoading, setIsLoading] = useState(true)
   const [isUploading, setIsUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState("")
+  const [uploadedCount, setUploadedCount] = useState(0)
+  const [totalUploadCount, setTotalUploadCount] = useState(0)
   const [isDeploying, setIsDeploying] = useState(false)
   const [deploymentStep, setDeploymentStep] = useState<string>("")
 
@@ -196,7 +199,10 @@ export default function CoreCreationFlow({ onBack }: CoreCreationFlowProps) {
 
     try {
       setIsUploading(true)
-      setUploadProgress("Uploading assets to storage...")
+      const totalFiles = nftAssets.length + 1
+      setTotalUploadCount(totalFiles)
+      setUploadedCount(0)
+      setUploadProgress("Uploading collection image...")
 
       const uploadResult = await uploadToStorage(
         storageProvider,
@@ -208,7 +214,11 @@ export default function CoreCreationFlow({ onBack }: CoreCreationFlowProps) {
           description: formData.description,
           royaltyBps: parseInt(formData.royaltyBps),
         },
-        undefined,
+        (uploaded: number, total: number) => {
+          setUploadedCount(uploaded)
+          setTotalUploadCount(total)
+          setUploadProgress(`Uploading file ${uploaded} of ${total}...`)
+        },
         storageProvider === "nft-storage" ? process.env.NEXT_PUBLIC_PINATA_JWT : undefined,
         bannerImage || undefined,
         wallet
@@ -224,8 +234,9 @@ export default function CoreCreationFlow({ onBack }: CoreCreationFlowProps) {
       setFormData(updatedFormData)
       await saveDraft(draftId, updatedFormData, collectionImage || undefined, bannerImage || undefined, nftAssets || undefined)
 
+      setUploadedCount(totalFiles)
       setUploadProgress("Upload complete!")
-      toast.success("Assets uploaded successfully!")
+      toast.success(`${totalFiles} files uploaded successfully`)
       return uploadResult.manifestUrl
     } catch (error) {
       console.error("Storage upload failed:", error)
@@ -234,6 +245,8 @@ export default function CoreCreationFlow({ onBack }: CoreCreationFlowProps) {
     } finally {
       setIsUploading(false)
       setUploadProgress("")
+      setUploadedCount(0)
+      setTotalUploadCount(0)
     }
   }
 
@@ -248,6 +261,11 @@ export default function CoreCreationFlow({ onBack }: CoreCreationFlowProps) {
     }
 
     if (currentStep === 3 && manifestUrl && !formData.canisterRecordId) {
+      if (!manifestUrl) {
+        toast.error("Manifest URL is required")
+        return
+      }
+
       try {
         setIsUploading(true)
         setUploadProgress("Creating collection record...")
@@ -289,7 +307,7 @@ export default function CoreCreationFlow({ onBack }: CoreCreationFlowProps) {
                 deployment_stage: { FilesUploading: null },
                 collection_address: [],
                 candy_machine_address: [],
-                manifest_url: [formData.manifestUrl],
+                manifest_url: [manifestUrl],
                 authority: publicKey ? [publicKey.toString()] : [],
               }
             }
@@ -304,11 +322,33 @@ export default function CoreCreationFlow({ onBack }: CoreCreationFlowProps) {
         }
 
         const canisterRecordId = createResult.Ok
+
+        // Set initial sale data for launchpad
+        const startDateTime = new Date(`${formData.saleStartDate}T${formData.saleStartTime}`)
+        const startTimeNs = BigInt(startDateTime.getTime()) * BigInt(1000000)
+
+        const initialSale: InitialSale = {
+          start_time: startTimeNs,
+          end_time: formData.hasEndTime && formData.saleEndDate && formData.saleEndTime
+            ? [BigInt(new Date(`${formData.saleEndDate}T${formData.saleEndTime}`).getTime()) * BigInt(1000000)]
+            : [],
+          public_start_time: [],
+          ended: false,
+          config: {
+            Solana: {
+              sale_type: formData.unlimitedSupply ? { OpenEdition: null } : { FixedPrice: null }
+            }
+          }
+        }
+
+        await registryActor.update_initial_sale({
+          collection_id: canisterRecordId,
+          initial_sale: [initialSale]
+        })
+
         const updatedFormData = { ...formData, manifestUrl, canisterRecordId, collectionId: canisterRecordId }
         setFormData(updatedFormData)
         await saveDraft(draftId, updatedFormData, collectionImage || undefined, bannerImage || undefined, nftAssets || undefined)
-
-        console.log("Collection record created:", canisterRecordId)
       } catch (error) {
         console.error("Failed to create collection record:", error)
         toast.error("Failed to create collection record", {
@@ -340,13 +380,25 @@ export default function CoreCreationFlow({ onBack }: CoreCreationFlowProps) {
     setIsDeploying(true)
 
     try {
-      setDeploymentStep("Creating Core Collection...")
-
+      setDeploymentStep("Initializing...")
       const umi = createUmi(SOLANA_RPC_URL)
         .use(mplCore())
+        .use(mplCoreCandyMachine())
         .use(walletAdapterIdentity(wallet))
 
+      const confirmOptions = {
+        send: { commitment: 'confirmed' as const },
+        confirm: { commitment: 'confirmed' as const },
+      }
+
+      const finalizedOptions = {
+        send: { commitment: 'finalized' as const },
+        confirm: { commitment: 'finalized' as const },
+      }
+
+      setDeploymentStep("Creating Core Collection...")
       const collectionSigner = generateSigner(umi)
+      const candyMachineSigner = generateSigner(umi)
 
       const createCollectionTx = await createCollection(umi, {
         collection: collectionSigner,
@@ -356,46 +408,107 @@ export default function CoreCreationFlow({ onBack }: CoreCreationFlowProps) {
           {
             type: 'Royalties',
             basisPoints: parseInt(formData.royaltyBps),
-            creators: [
-              {
-                address: umi.identity.publicKey,
-                percentage: 100,
-              },
-            ],
+            creators: [{ address: umi.identity.publicKey, percentage: 100 }],
             ruleSet: ruleSet('None'),
           },
         ],
       })
 
-      await createCollectionTx.sendAndConfirm(umi, { confirm: { commitment: 'finalized' } })
-      console.log("Collection created:", collectionSigner.publicKey.toString())
+      await createCollectionTx.sendAndConfirm(umi, finalizedOptions)
       toast.success("Core Collection created!")
 
-      setDeploymentStep("Fetching collection...")
-      const collection = await fetchCollection(umi, collectionSigner.publicKey)
+      setDeploymentStep("Creating Core Candy Machine...")
+      const itemsAvailable = formData.nftMetadataUrls!.length
 
-      setDeploymentStep("Minting Core Assets...")
-
-      for (let i = 0; i < formData.nftMetadataUrls!.length; i++) {
-        const assetSigner = generateSigner(umi)
-        setDeploymentStep(`Minting asset ${i + 1} of ${formData.nftMetadataUrls!.length}...`)
-
-        const createAssetTx = await create(umi, {
-          asset: assetSigner,
-          name: `${formData.name} #${i + 1}`,
-          uri: formData.nftMetadataUrls![i],
-          collection: collection,
-        })
-
-        await createAssetTx.sendAndConfirm(umi)
-        console.log(`Asset ${i + 1} minted:`, assetSigner.publicKey.toString())
+      let startDateForGuard: Date
+      if (formData.saleStartDate && formData.saleStartTime) {
+        const parsed = new Date(`${formData.saleStartDate}T${formData.saleStartTime}`)
+        startDateForGuard = isNaN(parsed.getTime()) ? new Date() : parsed
+      } else {
+        startDateForGuard = new Date()
       }
 
-      toast.success("All Core assets minted!")
+      let endDateForGuard: Date | null = null
+      if (formData.hasEndTime && formData.saleEndDate && formData.saleEndTime) {
+        const parsed = new Date(`${formData.saleEndDate}T${formData.saleEndTime}`)
+        if (!isNaN(parsed.getTime()) && parsed > startDateForGuard) {
+          endDateForGuard = parsed
+        }
+      }
+
+      const createCmBuilder = await createCoreCandyMachine(umi, {
+        candyMachine: candyMachineSigner,
+        collection: collectionSigner.publicKey,
+        collectionUpdateAuthority: umi.identity,
+        itemsAvailable: itemsAvailable,
+        authority: umi.identity.publicKey,
+        isMutable: true,
+        configLineSettings: some({
+          prefixName: '',
+          nameLength: 32,
+          prefixUri: '',
+          uriLength: 200,
+          isSequential: false,
+        }),
+        guards: {
+          botTax: some({ lamports: sol(0.001), lastInstruction: true }),
+          solPayment: some({
+            lamports: sol(parseFloat(formData.mintPrice)),
+            destination: umi.identity.publicKey,
+          }),
+          startDate: some({ date: dateTime(startDateForGuard.toISOString()) }),
+          ...(endDateForGuard ? { endDate: some({ date: dateTime(endDateForGuard.toISOString()) }) } : {}),
+        },
+      })
+
+      await createCmBuilder.sendAndConfirm(umi, confirmOptions)
+      toast.success("Core Candy Machine created!")
+
+      setDeploymentStep("Verifying Candy Machine...")
+      let verified = false
+      for (let attempt = 0; attempt < 10; attempt++) {
+        try {
+          await new Promise(resolve => setTimeout(resolve, 3000))
+          await fetchCandyMachine(umi, candyMachineSigner.publicKey)
+          verified = true
+          break
+        } catch (e) {
+          console.log(`Attempt ${attempt + 1}/10: Candy Machine not ready yet...`)
+        }
+      }
+
+      if (!verified) {
+        throw new Error('Failed to verify Candy Machine creation')
+      }
+
+      setDeploymentStep("Adding NFT items...")
+      const items = formData.nftMetadataUrls!.map((uri, index) => ({
+        name: `${formData.name} #${index + 1}`,
+        uri: uri,
+      }))
+
+      const BATCH_SIZE = 6
+      let currentIndex = 0
+      for (let i = 0; i < items.length; i += BATCH_SIZE) {
+        const batch = items.slice(i, i + BATCH_SIZE)
+        setDeploymentStep(`Adding items ${currentIndex + 1}-${currentIndex + batch.length} of ${items.length}...`)
+
+        const configLinesBuilder = addConfigLines(umi, {
+          candyMachine: candyMachineSigner.publicKey,
+          index: currentIndex,
+          configLines: batch,
+        })
+
+        await configLinesBuilder.sendAndConfirm(umi, confirmOptions)
+        currentIndex += batch.length
+      }
+
+      toast.success("All items added to Candy Machine!")
 
       const updatedFormData = {
         ...formData,
         collectionAddress: collectionSigner.publicKey.toString(),
+        candyMachineAddress: candyMachineSigner.publicKey.toString(),
       }
       setFormData(updatedFormData)
       await saveDraft(draftId, updatedFormData, collectionImage || undefined, bannerImage || undefined, nftAssets || undefined)
@@ -412,7 +525,7 @@ export default function CoreCreationFlow({ onBack }: CoreCreationFlowProps) {
   }
 
   const handleFinish = async () => {
-    if (!formData.collectionAddress || !publicKey || !formData.canisterRecordId) {
+    if (!formData.collectionAddress || !formData.candyMachineAddress || !publicKey || !formData.canisterRecordId) {
       toast.error("Missing required data")
       return
     }
@@ -429,7 +542,7 @@ export default function CoreCreationFlow({ onBack }: CoreCreationFlowProps) {
           Core: {
             stage: { Deployed: null },
             collection_address: [formData.collectionAddress],
-            candy_machine_address: [],
+            candy_machine_address: [formData.candyMachineAddress],
             manifest_url: [],
             authority: [publicKey.toString()],
           }
@@ -873,14 +986,22 @@ export default function CoreCreationFlow({ onBack }: CoreCreationFlowProps) {
                   </div>
                 )}
 
-                {isUploading && uploadProgress && (
-                  <div className="bg-purple-50 dark:bg-purple-950/20 p-4 rounded-lg">
+                {isUploading && (
+                  <div className="bg-purple-50 dark:bg-purple-950/20 p-4 rounded-lg space-y-3">
                     <div className="flex items-center gap-3">
                       <Loader2 className="h-5 w-5 text-purple-600 animate-spin" />
                       <div className="text-sm font-medium text-purple-900 dark:text-purple-100">
                         {uploadProgress}
                       </div>
                     </div>
+                    {totalUploadCount > 0 && (
+                      <div className="space-y-1">
+                        <Progress value={(uploadedCount / totalUploadCount) * 100} className="h-2" />
+                        <p className="text-xs text-purple-700 dark:text-purple-300">
+                          {uploadedCount} of {totalUploadCount} files uploaded
+                        </p>
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -902,7 +1023,7 @@ export default function CoreCreationFlow({ onBack }: CoreCreationFlowProps) {
                       {isUploading ? (
                         <>
                           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Uploading...
+                          {uploadedCount > 0 ? `Uploading ${uploadedCount}/${totalUploadCount}...` : "Uploading..."}
                         </>
                       ) : formData.manifestUrl ? (
                         <>
@@ -948,23 +1069,22 @@ export default function CoreCreationFlow({ onBack }: CoreCreationFlowProps) {
                   </div>
                 </div>
 
-                {formData.collectionAddress && (
+                {formData.candyMachineAddress && (
                   <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
                     <div className="flex items-start gap-3">
                       <CheckCircle className="h-5 w-5 text-green-600 mt-0.5" />
                       <div className="text-sm">
-                        <div className="font-medium text-green-900 dark:text-green-100 mb-1">
+                        <div className="font-medium text-green-900 dark:text-green-100 mb-2">
                           Collection Deployed
                         </div>
-                        <a
-                          href={`https://explorer.solana.com/address/${formData.collectionAddress}?cluster=devnet`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-purple-600 hover:underline inline-flex items-center gap-1"
-                        >
-                          {formData.collectionAddress.slice(0, 8)}...{formData.collectionAddress.slice(-6)}
-                          <ExternalLink className="h-3 w-3" />
-                        </a>
+                        <div className="space-y-1 text-green-700 dark:text-green-200">
+                          <p className="font-mono text-xs break-all">
+                            Candy Machine: <a href={`https://explorer.solana.com/address/${formData.candyMachineAddress}?cluster=devnet`} target="_blank" rel="noopener noreferrer" className="text-purple-600 hover:underline">{formData.candyMachineAddress.slice(0, 8)}...{formData.candyMachineAddress.slice(-6)}</a>
+                          </p>
+                          <p className="font-mono text-xs break-all">
+                            Collection: <a href={`https://explorer.solana.com/address/${formData.collectionAddress}?cluster=devnet`} target="_blank" rel="noopener noreferrer" className="text-purple-600 hover:underline">{formData.collectionAddress?.slice(0, 8)}...{formData.collectionAddress?.slice(-6)}</a>
+                          </p>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -980,7 +1100,7 @@ export default function CoreCreationFlow({ onBack }: CoreCreationFlowProps) {
                     <span className="text-sm">Collection record created</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    {formData.collectionAddress ? (
+                    {formData.candyMachineAddress ? (
                       <CheckCircle className="h-4 w-4 text-green-600" />
                     ) : isDeploying ? (
                       <Loader2 className="h-4 w-4 animate-spin text-purple-600" />
@@ -988,7 +1108,7 @@ export default function CoreCreationFlow({ onBack }: CoreCreationFlowProps) {
                       <div className="h-4 w-4 rounded-full border-2 border-purple-600" />
                     )}
                     <span className="text-sm">
-                      {formData.collectionAddress ? "Deployed to Solana" : isDeploying ? deploymentStep : "Deploy to Solana"}
+                      {formData.candyMachineAddress ? "Deployed to Solana" : isDeploying ? deploymentStep : "Deploy to Solana"}
                     </span>
                   </div>
                 </div>
@@ -1016,16 +1136,16 @@ export default function CoreCreationFlow({ onBack }: CoreCreationFlowProps) {
                   <div className="flex gap-2">
                     <Button
                       onClick={handleDeploy}
-                      disabled={isDeploying || !connected || !!formData.collectionAddress}
-                      variant={formData.collectionAddress ? "outline" : "default"}
-                      className={!formData.collectionAddress ? "bg-purple-600 hover:bg-purple-700" : ""}
+                      disabled={isDeploying || !connected || !!formData.candyMachineAddress}
+                      variant={formData.candyMachineAddress ? "outline" : "default"}
+                      className={!formData.candyMachineAddress ? "bg-purple-600 hover:bg-purple-700" : ""}
                     >
-                      {isDeploying && !formData.collectionAddress ? (
+                      {isDeploying && !formData.candyMachineAddress ? (
                         <>
                           <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                           Deploying...
                         </>
-                      ) : formData.collectionAddress ? (
+                      ) : formData.candyMachineAddress ? (
                         <>
                           <CheckCircle className="h-4 w-4 mr-2" />
                           Deployed
@@ -1039,10 +1159,10 @@ export default function CoreCreationFlow({ onBack }: CoreCreationFlowProps) {
                     </Button>
                     <Button
                       onClick={handleFinish}
-                      disabled={isDeploying || !formData.collectionAddress}
+                      disabled={isDeploying || !formData.candyMachineAddress}
                       className="bg-green-600 hover:bg-green-700"
                     >
-                      {isDeploying && formData.collectionAddress ? (
+                      {isDeploying && formData.candyMachineAddress ? (
                         <>
                           <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                           Publishing...

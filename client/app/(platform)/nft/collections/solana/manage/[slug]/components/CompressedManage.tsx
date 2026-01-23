@@ -6,10 +6,12 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Progress } from "@/components/ui/progress"
-import { Loader2, ExternalLink, Copy, CheckCircle2, Image as ImageIcon, TreePine, RefreshCw, Grid3X3, Settings, Wallet, Plus, AlertTriangle, Info } from "lucide-react"
+import { Textarea } from "@/components/ui/textarea"
+import { Loader2, ExternalLink, Copy, CheckCircle2, Image as ImageIcon, TreePine, RefreshCw, Grid3X3, Settings, Wallet, Plus, AlertTriangle, Info, Users, Download, Send, Layers } from "lucide-react"
 import { toast } from "sonner"
 import { Collection, CompressedCollectionData } from "@/declarations/registry/registry.did"
 import { useWallet } from "@solana/wallet-adapter-react"
@@ -19,6 +21,12 @@ import { Connection, PublicKey } from "@solana/web3.js"
 import { mplTokenMetadata } from "@metaplex-foundation/mpl-token-metadata"
 import { publicKey as umiPublicKey, none } from "@metaplex-foundation/umi"
 import { walletAdapterIdentity } from "@metaplex-foundation/umi-signer-wallet-adapters"
+
+interface HolderInfo {
+  wallet: string
+  count: number
+  nfts: string[]
+}
 
 const SOLANA_NETWORK = (process.env.NEXT_PUBLIC_SOLANA_NETWORK === "mainnet-beta"
   ? "mainnet-beta"
@@ -89,6 +97,21 @@ export default function CompressedManage({ collection, solanaData }: CompressedM
   const [nftMetadataUrls, setNftMetadataUrls] = useState<string[]>([])
   const [currentMintIndex, setCurrentMintIndex] = useState(0)
 
+  const [batchMintModalOpen, setBatchMintModalOpen] = useState(false)
+  const [batchMintQuantity, setBatchMintQuantity] = useState(5)
+  const [isBatchMinting, setIsBatchMinting] = useState(false)
+  const [batchMintProgress, setBatchMintProgress] = useState(0)
+  const [batchMintStep, setBatchMintStep] = useState("")
+
+  const [airdropModalOpen, setAirdropModalOpen] = useState(false)
+  const [airdropWallets, setAirdropWallets] = useState("")
+  const [isAirdropping, setIsAirdropping] = useState(false)
+  const [airdropProgress, setAirdropProgress] = useState(0)
+  const [airdropStep, setAirdropStep] = useState("")
+
+  const [holders, setHolders] = useState<HolderInfo[]>([])
+  const [isLoadingHolders, setIsLoadingHolders] = useState(false)
+
   const merkleTreeAddress = solanaData.merkle_tree_address?.[0] || null
   const collectionMint = solanaData.collection_mint?.[0] || null
   const manifestUrl = solanaData.manifest_url?.[0] || null
@@ -107,12 +130,18 @@ export default function CompressedManage({ collection, solanaData }: CompressedM
 
   useEffect(() => {
     if (manifestUrl && !manifest) {
+      console.log('Fetching manifest from:', manifestUrl)
       fetch(manifestUrl)
         .then(res => res.json())
         .then(data => {
+          console.log('Manifest loaded:', data)
           setManifest(data)
           if (data.properties?.files) {
-            setNftMetadataUrls(data.properties.files.map((f: { uri: string }) => f.uri))
+            const urls = data.properties.files.map((f: { uri: string }) => f.uri)
+            console.log('Extracted metadata URLs:', urls.length)
+            setNftMetadataUrls(urls)
+          } else {
+            console.warn('Manifest missing properties.files array')
           }
         })
         .catch(err => console.error('Failed to fetch manifest:', err))
@@ -129,16 +158,19 @@ export default function CompressedManage({ collection, solanaData }: CompressedM
       if (!accountInfo) throw new Error("Tree not found")
 
       const data = accountInfo.data
-      const maxBufferSize = data.readUInt32LE(8)
-      const maxDepth = data.readUInt32LE(12)
-      const authority = new PublicKey(data.slice(16, 48)).toString()
-      const maxCapacity = Math.pow(2, maxDepth)
+      const maxBufferSize = data.readUInt32LE(9)
+      const maxDepth = data.readUInt32LE(13)
+      const authority = new PublicKey(data.slice(17, 49)).toString()
+
+      const validMaxDepth = maxDepth > 0 && maxDepth <= 30 ? maxDepth : 14
+      const validBufferSize = maxBufferSize > 0 && maxBufferSize <= 2048 ? maxBufferSize : 64
+      const maxCapacity = Math.pow(2, validMaxDepth)
 
       setTreeState({
         publicKey: merkleTreeAddress,
         authority,
-        maxDepth,
-        maxBufferSize,
+        maxDepth: validMaxDepth,
+        maxBufferSize: validBufferSize,
         canopyDepth: 0,
         activeIndex: totalCNFTs,
         maxCapacity,
@@ -222,6 +254,7 @@ export default function CompressedManage({ collection, solanaData }: CompressedM
         collectionMint: umiPublicKey(collectionMint),
         metadata: {
           name: assetName || `${collection.name} #${currentMintIndex + 1}`,
+          symbol: collection.symbol,
           uri: assetUri,
           sellerFeeBasisPoints: collection.royalty_bps,
           collection: { key: umiPublicKey(collectionMint), verified: false },
@@ -258,9 +291,197 @@ export default function CompressedManage({ collection, solanaData }: CompressedM
     }
   }
 
+  const handleBatchMint = async () => {
+    if (!connected || !walletPublicKey || !merkleTreeAddress || !collectionMint) {
+      toast.error("Missing wallet or collection data")
+      return
+    }
+    if (nftMetadataUrls.length === 0) {
+      toast.error("No metadata URLs in manifest")
+      return
+    }
+
+    const availableUrls = nftMetadataUrls.slice(currentMintIndex, currentMintIndex + batchMintQuantity)
+    if (availableUrls.length === 0) {
+      toast.error("No more metadata URLs available")
+      return
+    }
+
+    try {
+      setIsBatchMinting(true)
+      setBatchMintProgress(0)
+      setBatchMintStep("Initializing...")
+
+      const umi = createUmi(SOLANA_RPC_URL)
+        .use(mplBubblegum())
+        .use(mplTokenMetadata())
+        .use(walletAdapterIdentity(wallet))
+
+      let successCount = 0
+      for (let i = 0; i < availableUrls.length; i++) {
+        const uri = availableUrls[i]
+        const mintIndex = currentMintIndex + i
+        setBatchMintStep(`Minting ${i + 1}/${availableUrls.length}...`)
+        setBatchMintProgress(Math.round((i / availableUrls.length) * 100))
+
+        try {
+          const mintTx = await mintToCollectionV1(umi, {
+            leafOwner: umi.identity.publicKey,
+            merkleTree: umiPublicKey(merkleTreeAddress),
+            collectionMint: umiPublicKey(collectionMint),
+            metadata: {
+              name: `${collection.name} #${mintIndex + 1}`,
+              symbol: collection.symbol,
+              uri,
+              sellerFeeBasisPoints: collection.royalty_bps,
+              collection: { key: umiPublicKey(collectionMint), verified: false },
+              creators: [{ address: umi.identity.publicKey, verified: false, share: 100 }],
+            },
+          })
+          await mintTx.sendAndConfirm(umi, { confirm: { commitment: 'confirmed' } })
+          successCount++
+        } catch (err) {
+          console.error(`Failed to mint #${mintIndex + 1}:`, err)
+        }
+      }
+
+      setBatchMintProgress(100)
+      toast.success(`Batch mint complete`, { description: `${successCount}/${availableUrls.length} cNFTs minted` })
+      setCurrentMintIndex(prev => prev + successCount)
+      setBatchMintModalOpen(false)
+      fetchTreeState()
+      setTimeout(() => fetchCompressedNFTs(1, true), 2000)
+    } catch (error: any) {
+      toast.error("Batch mint failed", { description: error?.message })
+    } finally {
+      setIsBatchMinting(false)
+      setBatchMintStep("")
+      setBatchMintProgress(0)
+    }
+  }
+
+  const handleAirdrop = async () => {
+    if (!connected || !walletPublicKey || !merkleTreeAddress || !collectionMint) {
+      toast.error("Missing wallet or collection data")
+      return
+    }
+
+    const walletList = airdropWallets.split('\n').map(w => w.trim()).filter(w => w.length > 0)
+    if (walletList.length === 0) {
+      toast.error("Please enter wallet addresses")
+      return
+    }
+
+    const availableUrls = nftMetadataUrls.slice(currentMintIndex, currentMintIndex + walletList.length)
+    if (availableUrls.length < walletList.length && nftMetadataUrls.length > 0) {
+      toast.error(`Only ${availableUrls.length} metadata URLs available for ${walletList.length} wallets`)
+      return
+    }
+
+    try {
+      setIsAirdropping(true)
+      setAirdropProgress(0)
+      setAirdropStep("Initializing...")
+
+      const umi = createUmi(SOLANA_RPC_URL)
+        .use(mplBubblegum())
+        .use(mplTokenMetadata())
+        .use(walletAdapterIdentity(wallet))
+
+      let successCount = 0
+      for (let i = 0; i < walletList.length; i++) {
+        const targetWallet = walletList[i]
+        const uri = availableUrls[i] || `${collection.image_url || ''}`
+        const mintIndex = currentMintIndex + i
+        setAirdropStep(`Airdropping to ${targetWallet.slice(0, 4)}...${targetWallet.slice(-4)} (${i + 1}/${walletList.length})`)
+        setAirdropProgress(Math.round((i / walletList.length) * 100))
+
+        try {
+          new PublicKey(targetWallet)
+        } catch {
+          console.error(`Invalid wallet: ${targetWallet}`)
+          continue
+        }
+
+        try {
+          const mintTx = await mintToCollectionV1(umi, {
+            leafOwner: umiPublicKey(targetWallet),
+            merkleTree: umiPublicKey(merkleTreeAddress),
+            collectionMint: umiPublicKey(collectionMint),
+            metadata: {
+              name: `${collection.name} #${mintIndex + 1}`,
+              symbol: collection.symbol,
+              uri,
+              sellerFeeBasisPoints: collection.royalty_bps,
+              collection: { key: umiPublicKey(collectionMint), verified: false },
+              creators: [{ address: umi.identity.publicKey, verified: false, share: 100 }],
+            },
+          })
+          await mintTx.sendAndConfirm(umi, { confirm: { commitment: 'confirmed' } })
+          successCount++
+        } catch (err) {
+          console.error(`Failed to airdrop to ${targetWallet}:`, err)
+        }
+      }
+
+      setAirdropProgress(100)
+      toast.success(`Airdrop complete`, { description: `${successCount}/${walletList.length} cNFTs sent` })
+      setCurrentMintIndex(prev => prev + successCount)
+      setAirdropWallets("")
+      setAirdropModalOpen(false)
+      fetchTreeState()
+      setTimeout(() => fetchCompressedNFTs(1, true), 2000)
+    } catch (error: any) {
+      toast.error("Airdrop failed", { description: error?.message })
+    } finally {
+      setIsAirdropping(false)
+      setAirdropStep("")
+      setAirdropProgress(0)
+    }
+  }
+
+  const fetchHolders = async () => {
+    if (cNFTs.length === 0) return
+    setIsLoadingHolders(true)
+    try {
+      const holderMap = new Map<string, { count: number; nfts: string[] }>()
+      for (const nft of cNFTs) {
+        const owner = nft.ownership?.owner || 'Unknown'
+        const existing = holderMap.get(owner) || { count: 0, nfts: [] }
+        existing.count++
+        existing.nfts.push(nft.id)
+        holderMap.set(owner, existing)
+      }
+      const holderList: HolderInfo[] = Array.from(holderMap.entries())
+        .map(([wallet, data]) => ({ wallet, ...data }))
+        .sort((a, b) => b.count - a.count)
+      setHolders(holderList)
+    } catch (error) {
+      console.error("Failed to process holders:", error)
+    } finally {
+      setIsLoadingHolders(false)
+    }
+  }
+
+  const exportHoldersCSV = () => {
+    if (holders.length === 0) return
+    const csv = ['Wallet,Count,NFT IDs', ...holders.map(h => `${h.wallet},${h.count},"${h.nfts.join(', ')}"`)].join('\n')
+    const blob = new Blob([csv], { type: 'text/csv' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${collection.slug || collection.id}-holders.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+    toast.success("CSV exported")
+  }
+
   const mintPrice = Number(collection.mint_price?.[0] || 0) / 1_000_000_000
   const treeUsagePercent = treeState ? Math.round((treeState.usedCapacity / treeState.maxCapacity) * 100) : 0
   const remainingCapacity = treeState ? treeState.maxCapacity - treeState.usedCapacity : 0
+  const remainingMetadata = nftMetadataUrls.length - currentMintIndex
+  const hasManifest = nftMetadataUrls.length > 0
+  const canMint = !hasManifest || remainingMetadata > 0
 
   return (
     <div className="space-y-8">
@@ -294,10 +515,45 @@ export default function CompressedManage({ collection, solanaData }: CompressedM
           </div>
 
           <div className="flex flex-wrap gap-3">
-            <Button onClick={() => setMintModalOpen(true)} className="gap-2 bg-green-600 hover:bg-green-700">
-              <Plus className="h-4 w-4" />
-              Mint cNFT
-            </Button>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span>
+                    <Button onClick={() => setMintModalOpen(true)} className="gap-2 bg-green-600 hover:bg-green-700" disabled={!canMint}>
+                      <Plus className="h-4 w-4" />
+                      Mint cNFT
+                    </Button>
+                  </span>
+                </TooltipTrigger>
+                {!canMint && <TooltipContent>Fully minted ({nftMetadataUrls.length}/{nftMetadataUrls.length})</TooltipContent>}
+              </Tooltip>
+            </TooltipProvider>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span>
+                    <Button onClick={() => setBatchMintModalOpen(true)} variant="outline" className="gap-2" disabled={!canMint}>
+                      <Layers className="h-4 w-4" />
+                      Batch Mint
+                    </Button>
+                  </span>
+                </TooltipTrigger>
+                {!canMint && <TooltipContent>Fully minted</TooltipContent>}
+              </Tooltip>
+            </TooltipProvider>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span>
+                    <Button onClick={() => setAirdropModalOpen(true)} variant="outline" className="gap-2" disabled={!canMint}>
+                      <Send className="h-4 w-4" />
+                      Airdrop
+                    </Button>
+                  </span>
+                </TooltipTrigger>
+                {!canMint && <TooltipContent>Fully minted</TooltipContent>}
+              </Tooltip>
+            </TooltipProvider>
             <Button variant="outline" onClick={() => { fetchTreeState(); fetchCompressedNFTs(1, true) }} disabled={isLoadingTree || isLoadingNFTs}>
               <RefreshCw className={`h-4 w-4 mr-2 ${isLoadingTree || isLoadingNFTs ? 'animate-spin' : ''}`} />
               Refresh
@@ -312,6 +568,21 @@ export default function CompressedManage({ collection, solanaData }: CompressedM
         </div>
       </div>
 
+      {!connected && (
+        <Card className="border-yellow-500/30 bg-yellow-500/10">
+          <CardContent className="py-6">
+            <div className="flex items-center gap-3">
+              <Wallet className="h-8 w-8 text-yellow-500" />
+              <div>
+                <h3 className="font-semibold text-yellow-700 dark:text-yellow-300">Wallet Not Connected</h3>
+                <p className="text-sm text-yellow-600 dark:text-yellow-400">Connect your Solana wallet to manage this collection</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card>
@@ -322,7 +593,9 @@ export default function CompressedManage({ collection, solanaData }: CompressedM
         </Card>
         <Card>
           <CardContent className="pt-6">
-            <div className="text-3xl font-bold">{treeState?.usedCapacity ?? totalCNFTs}</div>
+            <div className="text-3xl font-bold">
+              {hasManifest ? `${currentMintIndex} / ${nftMetadataUrls.length}` : totalCNFTs}
+            </div>
             <div className="text-sm text-muted-foreground">Minted</div>
           </CardContent>
         </Card>
@@ -334,8 +607,10 @@ export default function CompressedManage({ collection, solanaData }: CompressedM
         </Card>
         <Card>
           <CardContent className="pt-6">
-            <div className="text-3xl font-bold">{remainingCapacity.toLocaleString()}</div>
-            <div className="text-sm text-muted-foreground">Remaining</div>
+            <div className={`text-3xl font-bold ${remainingMetadata === 0 && hasManifest ? 'text-red-500' : ''}`}>
+              {hasManifest ? remainingMetadata : remainingCapacity.toLocaleString()}
+            </div>
+            <div className="text-sm text-muted-foreground">{hasManifest ? 'NFTs Remaining' : 'Tree Remaining'}</div>
           </CardContent>
         </Card>
       </div>
@@ -357,40 +632,25 @@ export default function CompressedManage({ collection, solanaData }: CompressedM
         </Card>
       )}
 
-      {/* Info Banners */}
-      <div className="space-y-3">
-        <div className="bg-green-500/10 border border-green-500/20 rounded-lg p-4">
+      {treeState && treeUsagePercent > 80 && (
+        <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-4">
           <div className="flex items-start gap-3">
-            <TreePine className="h-5 w-5 text-green-500 mt-0.5" />
+            <AlertTriangle className="h-5 w-5 text-amber-500 mt-0.5" />
             <div className="text-sm">
-              <div className="font-medium text-green-700 dark:text-green-300 mb-1">Compressed NFT Collection</div>
-              <p className="text-green-600 dark:text-green-400">
-                cNFTs use state compression for ~99% lower mint costs. Each NFT costs only ~0.00005 SOL to mint after tree creation.
+              <div className="font-medium text-amber-700 dark:text-amber-300 mb-1">Tree Nearly Full</div>
+              <p className="text-amber-600 dark:text-amber-400">
+                Your Merkle tree is {treeUsagePercent}% full. Consider creating a new collection with a larger tree.
               </p>
             </div>
           </div>
         </div>
-
-        {treeState && treeUsagePercent > 80 && (
-          <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-4">
-            <div className="flex items-start gap-3">
-              <AlertTriangle className="h-5 w-5 text-amber-500 mt-0.5" />
-              <div className="text-sm">
-                <div className="font-medium text-amber-700 dark:text-amber-300 mb-1">Tree Nearly Full</div>
-                <p className="text-amber-600 dark:text-amber-400">
-                  Your Merkle tree is {treeUsagePercent}% full. Tree size cannot be changed after creation.
-                  Consider creating a new collection with a larger tree if you need more capacity.
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
+      )}
 
       {/* Tabs */}
       <Tabs defaultValue="nfts" className="space-y-6">
         <TabsList>
           <TabsTrigger value="nfts" className="gap-2"><Grid3X3 className="h-4 w-4" />cNFTs ({totalCNFTs})</TabsTrigger>
+          <TabsTrigger value="holders" className="gap-2" onClick={() => { if (holders.length === 0) fetchHolders() }}><Users className="h-4 w-4" />Holders</TabsTrigger>
           <TabsTrigger value="details" className="gap-2"><Settings className="h-4 w-4" />Merkle Tree</TabsTrigger>
         </TabsList>
 
@@ -434,6 +694,59 @@ export default function CompressedManage({ collection, solanaData }: CompressedM
                 )
               })}
             </div>
+          )}
+        </TabsContent>
+
+        <TabsContent value="holders" className="space-y-4">
+          <div className="flex justify-between items-center">
+            <div className="text-sm text-muted-foreground">{holders.length} unique holders</div>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={fetchHolders} disabled={isLoadingHolders}>
+                <RefreshCw className={`h-4 w-4 mr-2 ${isLoadingHolders ? 'animate-spin' : ''}`} />
+                Refresh
+              </Button>
+              <Button variant="outline" size="sm" onClick={exportHoldersCSV} disabled={holders.length === 0}>
+                <Download className="h-4 w-4 mr-2" />
+                Export CSV
+              </Button>
+            </div>
+          </div>
+          {isLoadingHolders ? (
+            <div className="flex items-center justify-center py-12"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>
+          ) : holders.length === 0 ? (
+            <Card><CardContent className="py-12 text-center">
+              <Users className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+              <p className="text-muted-foreground">No holders data yet</p>
+              <Button className="mt-4" variant="outline" onClick={fetchHolders}>Load Holders</Button>
+            </CardContent></Card>
+          ) : (
+            <Card>
+              <CardContent className="p-0">
+                <div className="divide-y">
+                  {holders.map((holder, idx) => (
+                    <div key={holder.wallet} className="flex items-center justify-between p-4 hover:bg-muted/50">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full bg-green-500/10 flex items-center justify-center text-sm font-medium text-green-500">
+                          {idx + 1}
+                        </div>
+                        <div>
+                          <code className="text-sm">{holder.wallet.slice(0, 8)}...{holder.wallet.slice(-6)}</code>
+                          <div className="text-xs text-muted-foreground">{holder.count} cNFT{holder.count > 1 ? 's' : ''}</div>
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button size="sm" variant="ghost" onClick={() => copyToClipboard(holder.wallet, holder.wallet)}>
+                          {copied === holder.wallet ? <CheckCircle2 className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
+                        </Button>
+                        <Button size="sm" variant="ghost" onClick={() => openInExplorer(holder.wallet)}>
+                          <ExternalLink className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
           )}
         </TabsContent>
 
@@ -511,8 +824,27 @@ export default function CompressedManage({ collection, solanaData }: CompressedM
                     </Button>
                   </div>
                 </div>
+                <div>
+                  <label className="text-sm text-muted-foreground">Manifest URL</label>
+                  {manifestUrl ? (
+                    <div className="flex items-center gap-2 mt-1">
+                      <code className="flex-1 text-xs bg-muted px-3 py-2 rounded-md truncate">{manifestUrl}</code>
+                      <Button size="icon" variant="ghost" onClick={() => copyToClipboard(manifestUrl, 'manifest')}>
+                        {copied === 'manifest' ? <CheckCircle2 className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
+                      </Button>
+                      <Button size="icon" variant="ghost" onClick={() => window.open(manifestUrl, '_blank')}>
+                        <ExternalLink className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="mt-1 p-2 bg-amber-500/10 border border-amber-500/20 rounded-md text-xs text-amber-600">
+                      No manifest URL set - you'll need to input metadata URIs manually when minting
+                    </div>
+                  )}
+                </div>
                 <div className="grid grid-cols-2 gap-4 pt-2">
                   <div><div className="text-sm text-muted-foreground">Royalties</div><div className="font-medium">{Number(collection.royalty_bps) / 100}%</div></div>
+                  <div><div className="text-sm text-muted-foreground">Metadata URLs</div><div className="font-medium">{nftMetadataUrls.length} loaded</div></div>
                 </div>
               </CardContent>
             </Card>
@@ -529,60 +861,60 @@ export default function CompressedManage({ collection, solanaData }: CompressedM
           </DialogHeader>
 
           <div className="space-y-4 py-4">
-            <div className="flex items-center justify-between p-4 bg-green-500/10 rounded-lg">
-              <div>
-                <div className="font-medium text-green-700 dark:text-green-300">Ultra Low Cost</div>
-                <div className="text-2xl font-bold text-green-600">~0.00005 SOL</div>
+              <div className="flex items-center justify-between p-4 bg-green-500/10 rounded-lg">
+                <div>
+                  <div className="font-medium text-green-700 dark:text-green-300">Ultra Low Cost</div>
+                  <div className="text-2xl font-bold text-green-600">~0.00005 SOL</div>
+                </div>
+                <TreePine className="h-10 w-10 text-green-500" />
               </div>
-              <TreePine className="h-10 w-10 text-green-500" />
-            </div>
 
-            <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-              <div className="flex items-center gap-2">
-                <Wallet className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm">
-                  {connected ? `${walletPublicKey?.toString().slice(0, 6)}...${walletPublicKey?.toString().slice(-4)}` : 'Not connected'}
-                </span>
+              <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                <div className="flex items-center gap-2">
+                  <Wallet className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm">
+                    {connected ? `${walletPublicKey?.toString().slice(0, 6)}...${walletPublicKey?.toString().slice(-4)}` : 'Not connected'}
+                  </span>
+                </div>
+                <Badge variant={connected ? "default" : "secondary"} className={connected ? "bg-green-500/10 text-green-500" : ""}>
+                  {connected ? "Connected" : "Disconnected"}
+                </Badge>
               </div>
-              <Badge variant={connected ? "default" : "secondary"} className={connected ? "bg-green-500/10 text-green-500" : ""}>
-                {connected ? "Connected" : "Disconnected"}
-              </Badge>
-            </div>
 
-            {nftMetadataUrls.length > 0 && currentMintIndex < nftMetadataUrls.length && (
-              <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-3">
-                <div className="flex items-start gap-2">
-                  <Info className="h-4 w-4 text-blue-500 mt-0.5" />
-                  <div className="text-sm text-blue-700 dark:text-blue-300">
-                    <p className="font-medium">Auto-fill available</p>
-                    <p className="text-xs">Will use metadata #{currentMintIndex + 1} from manifest ({nftMetadataUrls.length - currentMintIndex} remaining)</p>
+              {nftMetadataUrls.length > 0 && currentMintIndex < nftMetadataUrls.length && (
+                <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-3">
+                  <div className="flex items-start gap-2">
+                    <Info className="h-4 w-4 text-blue-500 mt-0.5" />
+                    <div className="text-sm text-blue-700 dark:text-blue-300">
+                      <p className="font-medium">Auto-fill available</p>
+                      <p className="text-xs">Will use metadata #{currentMintIndex + 1} from manifest ({nftMetadataUrls.length - currentMintIndex} remaining)</p>
+                    </div>
                   </div>
                 </div>
-              </div>
-            )}
+              )}
 
-            <div className="space-y-3">
-              <div className="space-y-2">
-                <Label htmlFor="assetName">Asset Name</Label>
-                <Input
-                  id="assetName"
-                  placeholder={`${collection.name} #${currentMintIndex + 1}`}
-                  value={newAssetName}
-                  onChange={(e) => setNewAssetName(e.target.value)}
-                />
-              </div>
+              <div className="space-y-3">
+                <div className="space-y-2">
+                  <Label htmlFor="assetName">Asset Name</Label>
+                  <Input
+                    id="assetName"
+                    placeholder={`${collection.name} #${currentMintIndex + 1}`}
+                    value={newAssetName}
+                    onChange={(e) => setNewAssetName(e.target.value)}
+                  />
+                </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="assetUri">Metadata URI</Label>
-                <Input
-                  id="assetUri"
-                  placeholder={nftMetadataUrls[currentMintIndex] || "https://..."}
-                  value={newAssetUri}
-                  onChange={(e) => setNewAssetUri(e.target.value)}
-                />
-                <p className="text-xs text-muted-foreground">Leave empty to use next metadata from manifest</p>
+                <div className="space-y-2">
+                  <Label htmlFor="assetUri">Metadata URI</Label>
+                  <Input
+                    id="assetUri"
+                    placeholder={nftMetadataUrls[currentMintIndex] || "https://..."}
+                    value={newAssetUri}
+                    onChange={(e) => setNewAssetUri(e.target.value)}
+                  />
+                  <p className="text-xs text-muted-foreground">Leave empty to use next metadata from manifest</p>
+                </div>
               </div>
-            </div>
 
             {mintStep && (
               <div className="flex items-center gap-2 p-3 bg-green-500/10 text-green-600 rounded-lg text-sm">
@@ -608,6 +940,81 @@ export default function CompressedManage({ collection, solanaData }: CompressedM
                 Tree capacity: {treeState.usedCapacity.toLocaleString()} / {treeState.maxCapacity.toLocaleString()} ({treeUsagePercent}% used)
               </div>
             )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Batch Mint Modal */}
+      <Dialog open={batchMintModalOpen} onOpenChange={setBatchMintModalOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Batch Mint cNFTs</DialogTitle>
+            <DialogDescription>Mint multiple cNFTs from your manifest</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="p-4 bg-green-500/10 rounded-lg">
+              <div className="text-sm text-green-700 dark:text-green-300">
+                <strong>{nftMetadataUrls.length - currentMintIndex}</strong> metadata URLs remaining
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Quantity to Mint</Label>
+              <Input
+                type="number"
+                min={1}
+                max={Math.min(20, nftMetadataUrls.length - currentMintIndex)}
+                value={batchMintQuantity}
+                onChange={(e) => setBatchMintQuantity(Math.min(20, Math.max(1, parseInt(e.target.value) || 1)))}
+              />
+              <p className="text-xs text-muted-foreground">Max 20 per batch (sequential transactions)</p>
+            </div>
+            {isBatchMinting && (
+              <div className="space-y-2">
+                <Progress value={batchMintProgress} className="h-2" />
+                <p className="text-sm text-center text-muted-foreground">{batchMintStep}</p>
+              </div>
+            )}
+            <Button className="w-full bg-green-600 hover:bg-green-700" onClick={handleBatchMint} disabled={isBatchMinting || !connected || nftMetadataUrls.length - currentMintIndex === 0}>
+              {isBatchMinting ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Minting...</> : <><Layers className="h-4 w-4 mr-2" />Mint {batchMintQuantity} cNFTs</>}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Airdrop Modal */}
+      <Dialog open={airdropModalOpen} onOpenChange={setAirdropModalOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Airdrop cNFTs</DialogTitle>
+            <DialogDescription>Mint cNFTs directly to recipient wallets</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Wallet Addresses (one per line)</Label>
+              <Textarea
+                placeholder="wallet1address...\nwallet2address...\nwallet3address..."
+                value={airdropWallets}
+                onChange={(e) => setAirdropWallets(e.target.value)}
+                rows={6}
+              />
+              <p className="text-xs text-muted-foreground">
+                {airdropWallets.split('\n').filter(w => w.trim()).length} wallets entered
+              </p>
+            </div>
+            {nftMetadataUrls.length > 0 && (
+              <div className="p-3 bg-blue-500/10 rounded-lg text-sm text-blue-700 dark:text-blue-300">
+                Will use metadata URLs #{currentMintIndex + 1} onwards from manifest
+              </div>
+            )}
+            {isAirdropping && (
+              <div className="space-y-2">
+                <Progress value={airdropProgress} className="h-2" />
+                <p className="text-sm text-center text-muted-foreground">{airdropStep}</p>
+              </div>
+            )}
+            <Button className="w-full bg-green-600 hover:bg-green-700" onClick={handleAirdrop} disabled={isAirdropping || !connected || !airdropWallets.trim()}>
+              {isAirdropping ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Airdropping...</> : <><Send className="h-4 w-4 mr-2" />Airdrop cNFTs</>}
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
