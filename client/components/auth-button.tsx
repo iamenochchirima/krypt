@@ -11,7 +11,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { LogOut, User, Settings } from "lucide-react"
+import { LogOut, User, Settings, Copy, Check } from "lucide-react"
 import Link from "next/link"
 import RegistrationModal from "./registration/registration-modal"
 import LoadingModal from "./loading-modal"
@@ -23,6 +23,17 @@ export default function AuthButton() {
   const { isAuthenticated, user, logout, fetchingUser, login } = useAuth()
   const [isRegistrationModalOpen, setIsRegistrationModalOpen] = useState(false)
   const [isLoggingOut, setIsLoggingOut] = useState(false)
+  const [copiedPrincipal, setCopiedPrincipal] = useState(false)
+
+  const handleCopyPrincipal = async (e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (user?.principal) {
+      await navigator.clipboard.writeText(user.principal.toString())
+      setCopiedPrincipal(true)
+      setTimeout(() => setCopiedPrincipal(false), 2000)
+    }
+  }
 
   useEffect(() => {
     // Close registration modal if user is found
@@ -85,7 +96,20 @@ export default function AuthButton() {
           <DropdownMenuLabel className="font-normal">
             <div className="flex flex-col space-y-1">
               <p className="text-sm font-medium leading-none">{user.username}</p>
-              <p className="text-xs leading-none text-muted-foreground truncate">{user.principal.toString()}</p>
+              <div className="flex items-center gap-1">
+                <p className="text-xs leading-none text-muted-foreground truncate max-w-[180px]">{user.principal.toString()}</p>
+                <button
+                  onClick={handleCopyPrincipal}
+                  className="p-0.5 hover:bg-muted rounded transition-colors flex-shrink-0"
+                  title="Copy principal"
+                >
+                  {copiedPrincipal ? (
+                    <Check className="h-3 w-3 text-green-500" />
+                  ) : (
+                    <Copy className="h-3 w-3 text-muted-foreground hover:text-foreground" />
+                  )}
+                </button>
+              </div>
             </div>
           </DropdownMenuLabel>
           <DropdownMenuSeparator />

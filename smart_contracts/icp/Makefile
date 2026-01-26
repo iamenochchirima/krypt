@@ -88,6 +88,7 @@ deploy-treasury:
 	rsync -av src/declarations/treasury/ ../../admin/declarations/treasury/
 
 deploy-identity-certifier:
+	dfx canister create identity_certifier --specified-id le5gl-3iaaa-aaaal-qsvia-cai
 	dfx deploy identity_certifier --argument '(principal "o4jpg-z2hcz-bf2oe-zziee-bsw4t-jgecg-boagp-segn6-pdznr-u6bdc-zae")'
 	dfx generate identity_certifier
 	mkdir -p ../../client/declarations
@@ -157,3 +158,28 @@ build-x_chain:
 
 build-marketplace:
 	cargo build --target wasm32-unknown-unknown --release --package marketplace
+
+deploy-local:
+	# Create canisters with specific IDs
+	dfx canister create internet_identity --specified-id rdmx6-jaaaa-aaaaa-aaadq-cai || true
+	dfx canister create identity_certifier --specified-id le5gl-3iaaa-aaaal-qsvia-cai || true
+	dfx canister create users --specified-id ymtcl-4yaaa-aaaal-qsrsq-cai || true
+	dfx canister create registry --specified-id fbrie-gqaaa-aaaal-qsuiq-cai || true
+	dfx canister create marketplace || true
+	dfx canister create icp --specified-id ryjl3-tyaaa-aaaaa-aaaba-cai || true
+	dfx canister create krypt || true
+	# Deploy all canisters
+	dfx deploy internet_identity
+	dfx deploy identity_certifier --argument '(principal "o4jpg-z2hcz-bf2oe-zziee-bsw4t-jgecg-boagp-segn6-pdznr-u6bdc-zae")'
+	dfx deploy users --argument '(record { super_admin = principal "shu3y-t65bi-rhvef-c7vvy-arrzh-emws6-g2uew-hpgh2-uvjqi-7s3b2-zae" })'
+	dfx deploy registry --yes --argument '(record { admin = principal "o4jpg-z2hcz-bf2oe-zziee-bsw4t-jgecg-boagp-segn6-pdznr-u6bdc-zae" })'
+	dfx deploy marketplace --yes --argument '(record { admin = principal "o4jpg-z2hcz-bf2oe-zziee-bsw4t-jgecg-boagp-segn6-pdznr-u6bdc-zae"; collection_creation_fee = 100_000_000 : nat; marketplace_fee_percentage = 250 : nat16 })'
+	dfx deploy icp --argument '(variant { Init = record { token_name = "ICP"; token_symbol = "ICP"; minting_account = record { owner = principal "o4jpg-z2hcz-bf2oe-zziee-bsw4t-jgecg-boagp-segn6-pdznr-u6bdc-zae" }; initial_balances = vec { record { record { owner = principal "shu3y-t65bi-rhvef-c7vvy-arrzh-emws6-g2uew-hpgh2-uvjqi-7s3b2-zae" }; 10_000_000_000_000_000_000 } }; decimals = opt 8; metadata = vec { record { "icrc1:logo"; variant { Text = "" } } }; transfer_fee = 0; archive_options = record { trigger_threshold = 2000; num_blocks_to_archive = 1000; controller_id = principal "shu3y-t65bi-rhvef-c7vvy-arrzh-emws6-g2uew-hpgh2-uvjqi-7s3b2-zae" }; feature_flags = opt record { icrc2 = true } } })'
+	dfx deploy krypt --argument '(variant { Init = record { token_name = "KRYPT"; token_symbol = "KRYPT"; minting_account = record { owner = principal "o4jpg-z2hcz-bf2oe-zziee-bsw4t-jgecg-boagp-segn6-pdznr-u6bdc-zae" }; initial_balances = vec { record { record { owner = principal "shu3y-t65bi-rhvef-c7vvy-arrzh-emws6-g2uew-hpgh2-uvjqi-7s3b2-zae" }; 10_000_000_000_000_000_000 } }; decimals = opt 8; metadata = vec { record { "icrc1:logo"; variant { Text = "" } } }; transfer_fee = 0; archive_options = record { trigger_threshold = 2000; num_blocks_to_archive = 1000; controller_id = principal "shu3y-t65bi-rhvef-c7vvy-arrzh-emws6-g2uew-hpgh2-uvjqi-7s3b2-zae" }; feature_flags = opt record { icrc2 = true } } })'
+	# Generate declarations
+	dfx generate
+	# Sync declarations to client and admin
+	mkdir -p ../../client/declarations
+	mkdir -p ../../admin/declarations
+	rsync -av --delete src/declarations/ ../../client/declarations/
+	rsync -av --delete src/declarations/ ../../admin/declarations/

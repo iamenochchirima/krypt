@@ -43,22 +43,9 @@ export interface ArchivedBlocks {
   'callback' : [Principal, string],
 }
 export interface Args { 'file_path' : string }
-export interface Args_1 { 'principal' : Principal }
-export interface Args_2 { 'permission' : Permission, 'principal' : Principal }
-export interface Args_3 { 'permission' : Permission, 'principal' : Principal }
-export interface Args_4 {
-  'file_hash' : string,
-  'file_path' : string,
-  'file_size' : bigint,
-  'chunk_size' : [] | [bigint],
-}
-export interface Args_5 { 'mint_requests' : Array<MintRequest> }
-export interface Args_6 {
-  'chunk_id' : bigint,
-  'file_path' : string,
-  'chunk_data' : Uint8Array | number[],
-}
-export interface Args_7 {
+export interface Args_1 { 'files' : Array<Args> }
+export interface Args_10 { 'mint_requests' : Array<MintRequest> }
+export interface Args_11 {
   'supply_cap' : [] | [bigint],
   'tx_window' : [] | [bigint],
   'default_take_value' : [] | [bigint],
@@ -75,12 +62,36 @@ export interface Args_7 {
   'collection_metadata' : [] | [Array<[string, CustomValue]>],
   'symbol' : [] | [string],
 }
-export interface Args_8 {
+export interface Args_12 {
   'token_id' : bigint,
   'metadata' : Array<[string, CustomValue]>,
 }
-export type Args_9 = { 'Upgrade' : UpgradeArgs } |
+export type Args_13 = { 'Upgrade' : UpgradeArgs } |
   { 'Init' : InitArgs };
+export interface Args_2 {
+  'file_hash' : string,
+  'file_path' : string,
+  'file_size' : bigint,
+  'chunk_size' : [] | [bigint],
+}
+export interface Args_3 { 'files' : Array<Args_2> }
+export interface Args_4 {
+  'chunk_id' : bigint,
+  'file_path' : string,
+  'chunk_data' : Uint8Array | number[],
+}
+export interface Args_5 { 'chunks' : Array<Args_4> }
+export interface Args_6 { 'file_path' : string }
+export interface Args_7 { 'principal' : Principal }
+export interface Args_8 { 'permission' : Permission, 'principal' : Principal }
+export interface Args_9 { 'permission' : Permission, 'principal' : Principal }
+export type BatchFinalizeUploadError = { 'StorageCanisterError' : string } |
+  { 'ConcurrentManagementCall' : null };
+export interface BatchFinalizeUploadResp { 'results' : Array<Result> }
+export type BatchInitUploadError = { 'StorageCanisterError' : string } |
+  { 'ConcurrentManagementCall' : null };
+export interface BatchInitUploadResp { 'results' : Array<Result_2> }
+export interface BatchStoreChunksResp { 'results' : Array<Result_4> }
 export interface BlockWithId { 'id' : bigint, 'block' : ICRC3Value }
 export interface BuildVersion {
   'major' : number,
@@ -137,6 +148,11 @@ export interface FinalizeUploadResp { 'url' : string }
 export type GetAllUploadsError = { 'StorageCanisterError' : string };
 export interface GetBlocksRequest { 'start' : bigint, 'length' : bigint }
 export interface GetBlocksResult {
+  'log_length' : bigint,
+  'blocks' : Array<BlockWithId>,
+  'archived_blocks' : Vec,
+}
+export interface GetBlocksResult_1 {
   'log_length' : bigint,
   'blocks' : Array<BlockWithId>,
   'archived_blocks' : Array<ArchivedBlocks>,
@@ -234,48 +250,60 @@ export type Permission = { 'UpdateMetadata' : null } |
 export interface PermissionManager {
   'user_permissions' : Array<[Principal, Array<Permission>]>,
 }
-export type Result = { 'Ok' : null } |
-  { 'Err' : BurnNftError };
-export type Result_1 = { 'Ok' : {} } |
-  { 'Err' : CancelUploadError };
-export type Result_10 = { 'Ok' : Array<[] | [ApproveTokenResult]> } |
+export type Result = { 'Ok' : string } |
+  { 'Err' : FinalizeUploadError };
+export type Result_1 = { 'Ok' : BatchFinalizeUploadResp } |
+  { 'Err' : BatchFinalizeUploadError };
+export type Result_10 = { 'Ok' : UploadState } |
+  { 'Err' : GetUploadStatusError };
+export type Result_11 = { 'Ok' : Array<Permission> } |
+  { 'Err' : GetUserPermissionsError };
+export type Result_12 = { 'Ok' : null } |
+  { 'Err' : GrantPermissionError };
+export type Result_13 = { 'Ok' : boolean } |
+  { 'Err' : HasPermissionError };
+export type Result_14 = { 'Ok' : ConsentInfo } |
+  { 'Err' : Icrc21Error };
+export type Result_15 = { 'Ok' : Array<[] | [ApproveCollectionResult]> } |
+  { 'Err' : ApproveCollectionError };
+export type Result_16 = { 'Ok' : Array<[] | [ApproveTokenResult]> } |
   { 'Err' : ApproveTokenError };
-export type Result_11 = {
+export type Result_17 = {
     'Ok' : Array<[] | [RevokeCollectionApprovalResult]>
   } |
   { 'Err' : RevokeCollectionApprovalError };
-export type Result_12 = { 'Ok' : Array<[] | [RevokeTokenApprovalResponse]> } |
+export type Result_18 = { 'Ok' : Array<[] | [RevokeTokenApprovalResponse]> } |
   { 'Err' : RevokeTokenApprovalError };
-export type Result_13 = { 'Ok' : Array<[] | [TransferFromResult]> } |
+export type Result_19 = { 'Ok' : Array<[] | [TransferFromResult]> } |
   { 'Err' : TransferFromError };
-export type Result_14 = { 'Ok' : bigint } |
-  { 'Err' : TransferError };
-export type Result_15 = { 'Ok' : {} } |
+export type Result_2 = { 'Ok' : null } |
   { 'Err' : InitUploadError };
-export type Result_16 = { 'Ok' : bigint } |
+export type Result_20 = { 'Ok' : bigint } |
+  { 'Err' : TransferError };
+export type Result_21 = { 'Ok' : {} } |
+  { 'Err' : InitUploadError };
+export type Result_22 = { 'Ok' : bigint } |
   { 'Err' : MintError };
-export type Result_17 = { 'Ok' : {} } |
+export type Result_23 = { 'Ok' : {} } |
   { 'Err' : StoreChunkError };
-export type Result_18 = { 'Ok' : null } |
-  { 'Err' : UpdateCollectionMetadataError };
-export type Result_19 = { 'Ok' : bigint } |
+export type Result_24 = { 'Ok' : null } |
+  { 'Err' : BatchInitUploadError };
+export type Result_25 = { 'Ok' : bigint } |
   { 'Err' : UpdateNftMetadataError };
-export type Result_2 = { 'Ok' : FinalizeUploadResp } |
-  { 'Err' : FinalizeUploadError };
-export type Result_3 = { 'Ok' : Array<[string, UploadState]> } |
-  { 'Err' : GetAllUploadsError };
-export type Result_4 = { 'Ok' : UploadState } |
-  { 'Err' : GetUploadStatusError };
-export type Result_5 = { 'Ok' : Array<Permission> } |
-  { 'Err' : GetUserPermissionsError };
+export type Result_3 = { 'Ok' : BatchInitUploadResp } |
+  { 'Err' : BatchInitUploadError };
+export type Result_4 = { 'Ok' : null } |
+  { 'Err' : StoreChunkError };
+export type Result_5 = { 'Ok' : BatchStoreChunksResp } |
+  { 'Err' : BatchInitUploadError };
 export type Result_6 = { 'Ok' : null } |
-  { 'Err' : GrantPermissionError };
-export type Result_7 = { 'Ok' : boolean } |
-  { 'Err' : HasPermissionError };
-export type Result_8 = { 'Ok' : ConsentInfo } |
-  { 'Err' : Icrc21Error };
-export type Result_9 = { 'Ok' : Array<[] | [ApproveCollectionResult]> } |
-  { 'Err' : ApproveCollectionError };
+  { 'Err' : BurnNftError };
+export type Result_7 = { 'Ok' : {} } |
+  { 'Err' : CancelUploadError };
+export type Result_8 = { 'Ok' : FinalizeUploadResp } |
+  { 'Err' : FinalizeUploadError };
+export type Result_9 = { 'Ok' : Array<[string, UploadState]> } |
+  { 'Err' : GetAllUploadsError };
 export interface RevokeCollectionApprovalArg {
   'memo' : [] | [Uint8Array | number[]],
   'from_subaccount' : [] | [Uint8Array | number[]],
@@ -356,10 +384,6 @@ export type TransferFromError = {
   { 'TooOld' : null };
 export type TransferFromResult = { 'Ok' : bigint } |
   { 'Err' : TransferFromError };
-export type UpdateCollectionMetadataError = {
-    'StorageCanisterError' : string
-  } |
-  { 'ConcurrentManagementCall' : null };
 export type UpdateNftMetadataError = { 'StorageCanisterError' : string } |
   { 'TokenDoesNotExist' : null } |
   { 'ConcurrentManagementCall' : null };
@@ -370,26 +394,35 @@ export interface UpgradeArgs {
 export type UploadState = { 'Init' : null } |
   { 'Finalized' : null } |
   { 'InProgress' : null };
+export type Vec = Array<
+  {
+    'args' : Array<{ 'start' : bigint, 'length' : bigint }>,
+    'callback' : [Principal, string],
+  }
+>;
 export interface _SERVICE {
-  'burn_nft' : ActorMethod<[bigint], Result>,
-  'cancel_upload' : ActorMethod<[Args], Result_1>,
-  'finalize_upload' : ActorMethod<[Args], Result_2>,
+  'batch_finalize_upload' : ActorMethod<[Args_1], Result_1>,
+  'batch_init_upload' : ActorMethod<[Args_3], Result_3>,
+  'batch_store_chunks' : ActorMethod<[Args_5], Result_5>,
+  'burn_nft' : ActorMethod<[bigint], Result_6>,
+  'cancel_upload' : ActorMethod<[Args_6], Result_7>,
+  'finalize_upload' : ActorMethod<[Args_6], Result_8>,
   'get_all_storage_subcanisters' : ActorMethod<[], Array<Principal>>,
-  'get_all_uploads' : ActorMethod<[[] | [bigint], [] | [bigint]], Result_3>,
-  'get_upload_status' : ActorMethod<[string], Result_4>,
-  'get_user_permissions' : ActorMethod<[Args_1], Result_5>,
-  'grant_permission' : ActorMethod<[Args_2], Result_6>,
-  'has_permission' : ActorMethod<[Args_3], Result_7>,
+  'get_all_uploads' : ActorMethod<[[] | [bigint], [] | [bigint]], Result_9>,
+  'get_upload_status' : ActorMethod<[string], Result_10>,
+  'get_user_permissions' : ActorMethod<[Args_7], Result_11>,
+  'grant_permission' : ActorMethod<[Args_8], Result_12>,
+  'has_permission' : ActorMethod<[Args_9], Result_13>,
   'icrc10_supported_standards' : ActorMethod<[], Array<SupportedStandard>>,
   'icrc21_canister_call_consent_message' : ActorMethod<
     [ConsentMessageRequest],
-    Result_8
+    Result_14
   >,
   'icrc37_approve_collection' : ActorMethod<
     [Array<ApproveCollectionArg>],
-    Result_9
+    Result_15
   >,
-  'icrc37_approve_tokens' : ActorMethod<[Array<ApproveTokenArg>], Result_10>,
+  'icrc37_approve_tokens' : ActorMethod<[Array<ApproveTokenArg>], Result_16>,
   'icrc37_get_collection_approvals' : ActorMethod<
     [Account, [] | [ApproveCollectionArg], [] | [bigint]],
     Array<ApproveCollectionArg>
@@ -406,15 +439,18 @@ export interface _SERVICE {
   'icrc37_max_revoke_approvals' : ActorMethod<[], [] | [bigint]>,
   'icrc37_revoke_collection_approvals' : ActorMethod<
     [Array<RevokeCollectionApprovalArg>],
-    Result_11
+    Result_17
   >,
   'icrc37_revoke_token_approvals' : ActorMethod<
     [Array<RevokeTokenApprovalArg>],
-    Result_12
+    Result_18
   >,
-  'icrc37_transfer_from' : ActorMethod<[Array<TransferFromArg>], Result_13>,
+  'icrc37_transfer_from' : ActorMethod<[Array<TransferFromArg>], Result_19>,
   'icrc3_get_archives' : ActorMethod<[null], Array<ICRC3ArchiveInfo>>,
-  'icrc3_get_blocks' : ActorMethod<[Array<GetBlocksRequest>], GetBlocksResult>,
+  'icrc3_get_blocks' : ActorMethod<
+    [Array<GetBlocksRequest>],
+    GetBlocksResult_1
+  >,
   'icrc3_get_properties' : ActorMethod<[null], ICRC3Properties>,
   'icrc3_get_tip_certificate' : ActorMethod<[null], ICRC3DataCertificate>,
   'icrc3_supported_block_types' : ActorMethod<
@@ -446,14 +482,14 @@ export interface _SERVICE {
     Array<bigint>
   >,
   'icrc7_total_supply' : ActorMethod<[], bigint>,
-  'icrc7_transfer' : ActorMethod<[Array<TransferArg>], Array<[] | [Result_14]>>,
+  'icrc7_transfer' : ActorMethod<[Array<TransferArg>], Array<[] | [Result_20]>>,
   'icrc7_tx_window' : ActorMethod<[], [] | [bigint]>,
-  'init_upload' : ActorMethod<[Args_4], Result_15>,
-  'mint' : ActorMethod<[Args_5], Result_16>,
-  'revoke_permission' : ActorMethod<[Args_3], Result_6>,
-  'store_chunk' : ActorMethod<[Args_6], Result_17>,
-  'update_collection_metadata' : ActorMethod<[Args_7], Result_18>,
-  'update_nft_metadata' : ActorMethod<[Args_8], Result_19>,
+  'init_upload' : ActorMethod<[Args_2], Result_21>,
+  'mint' : ActorMethod<[Args_10], Result_22>,
+  'revoke_permission' : ActorMethod<[Args_9], Result_12>,
+  'store_chunk' : ActorMethod<[Args_4], Result_23>,
+  'update_collection_metadata' : ActorMethod<[Args_11], Result_24>,
+  'update_nft_metadata' : ActorMethod<[Args_12], Result_25>,
 }
 export declare const idlFactory: IDL.InterfaceFactory;
 export declare const init: (args: { IDL: typeof IDL }) => IDL.Type[];

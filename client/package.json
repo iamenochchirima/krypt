@@ -83,6 +83,7 @@
     "ic-use-actor": "^0.1.0",
     "idb": "^8.0.3",
     "input-otp": "latest",
+    "js-sha256": "^0.11.1",
     "lucide-react": "^0.454.0",
     "next": "15.2.8",
     "next-themes": "latest",

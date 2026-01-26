@@ -10,14 +10,17 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Upload, Eye, CheckCircle, Info, Rocket, Check, Clock, Loader2 } from "lucide-react"
-import { saveDraft, loadDraft, deleteDraft } from "@/lib/storage/draftStorage"
+import { Upload, Eye, CheckCircle, Info, Rocket, Check, Clock, Loader2, Wallet, ImageIcon } from "lucide-react"
+import { saveDraft, loadDraft, deleteDraft, SerializedMintRequest } from "@/lib/storage/draftStorage"
 import { useDebounce } from "@/hooks/useDebounce"
 import { useAuth } from "@/providers/auth-context"
-import { getICPMarketplaceActor, getRegistryActor } from "@/providers/actors/marketplace"
+import { getICPMarketplaceActor, getRegistryActor, getICRC7NftActor, getICRC2Actor } from "@/providers/actors/marketplace"
+import { uploadAssetWithMetadata } from "@/lib/icp/fileUpload"
+import { metadataUrlToICRC3Value, mintNFTBatch } from "@/lib/icp/nftMinting"
 import { toast } from "sonner"
 import { Principal } from "@dfinity/principal"
 import AuthGuard from "@/components/auth-guard"
+import { icpCanisterId, marketplaceCanisterId } from "@/constants/canisters-config"
 
 interface CollectionFormData {
   name: string
@@ -26,13 +29,14 @@ interface CollectionFormData {
   maxSupply: string
   unlimitedSupply: boolean
   collectionCanisterId?: string
+  registryId?: string
 }
 
 type SaveStatus = "saving" | "saved" | "idle"
 
 export default function CreateICPCollectionPage() {
   const router = useRouter()
-  const { identity, isAuthenticated } = useAuth()
+  const { identity, isAuthenticated, principalId } = useAuth()
 
   const draftId = "icp-draft"
   const [currentStep, setCurrentStep] = useState(1)
@@ -51,6 +55,17 @@ export default function CreateICPCollectionPage() {
   const [isDeploying, setIsDeploying] = useState(false)
   const [deploymentStep, setDeploymentStep] = useState<string>("")
   const debouncedFormData = useDebounce(formData, 1000)
+
+  const [icpBalance, setIcpBalance] = useState<bigint>(BigInt(0))
+  const [currentAllowance, setCurrentAllowance] = useState<bigint>(BigInt(0))
+  const [isApproving, setIsApproving] = useState(false)
+  const [isApproved, setIsApproved] = useState(false)
+
+  const [uploadFiles, setUploadFiles] = useState<File[]>([])
+  const [isMinting, setIsMinting] = useState(false)
+  const [mintProgress, setMintProgress] = useState(0)
+  const [mintStatus, setMintStatus] = useState("")
+  const [pendingMintRequests, setPendingMintRequests] = useState<SerializedMintRequest[]>([])
 
   useEffect(() => {
     const fetchConfig = async () => {
@@ -71,7 +86,11 @@ export default function CreateICPCollectionPage() {
       if (!isLoading && (formData.name || formData.symbol || formData.description)) {
         setSaveStatus("saving")
         try {
-          await saveDraft(draftId, formData, undefined, undefined)
+          await saveDraft(draftId, formData, undefined, undefined, undefined, {
+            currentStep,
+            isApproved,
+            registryId: formData.registryId,
+          })
           setSaveStatus("saved")
           setLastSaved(Date.now())
         } catch (error) {
@@ -81,7 +100,7 @@ export default function CreateICPCollectionPage() {
       }
     }
     autoSave()
-  }, [debouncedFormData, draftId, isLoading])
+  }, [debouncedFormData, draftId, isLoading, currentStep, isApproved])
 
   useEffect(() => {
     const loadSavedDraft = async () => {
@@ -91,6 +110,15 @@ export default function CreateICPCollectionPage() {
           setFormData(saved.formData)
           setLastSaved(saved.lastUpdated)
           setSaveStatus("saved")
+          if (saved.currentStep) {
+            setCurrentStep(saved.currentStep)
+          }
+          if (saved.isApproved) {
+            setIsApproved(saved.isApproved)
+          }
+          if (saved.pendingMintRequests && saved.pendingMintRequests.length > 0) {
+            setPendingMintRequests(saved.pendingMintRequests)
+          }
         }
       } catch (error) {
         console.error("Failed to load draft:", error)
@@ -109,17 +137,46 @@ export default function CreateICPCollectionPage() {
     return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
   }, [])
 
+  const fetchBalanceAndAllowance = useCallback(async () => {
+    if (!identity || !principalId) return
+    try {
+      const icpActor = await getICRC2Actor(identity, icpCanisterId)
+      const principal = Principal.fromText(principalId)
+      const account = { owner: principal, subaccount: [] as [] }
+
+      const balance = await icpActor.icrc1_balance_of(account)
+      setIcpBalance(balance)
+
+      const allowance = await icpActor.icrc2_allowance({
+        account,
+        spender: { owner: Principal.fromText(marketplaceCanisterId), subaccount: [] as [] }
+      })
+      setCurrentAllowance(allowance.allowance)
+      setIsApproved(creationFee ? allowance.allowance >= creationFee : false)
+    } catch (error) {
+      console.error("Failed to fetch balance/allowance:", error)
+    }
+  }, [identity, principalId, creationFee])
+
+  useEffect(() => {
+    if (currentStep === 2 && identity && principalId) {
+      fetchBalanceAndAllowance()
+    }
+  }, [currentStep, identity, principalId, fetchBalanceAndAllowance])
+
   const formatICP = (e8s: bigint) => {
     return (Number(e8s) / 100_000_000).toFixed(2)
   }
 
   const steps = [
     { id: 1, title: "Collection Info", description: "Basic details" },
-    { id: 2, title: "Review & Deploy", description: "Deploy canister" },
+    { id: 2, title: "Approve Payment", description: "Approve ICP" },
+    { id: 3, title: "Deploy", description: "Deploy canister" },
+    { id: 4, title: "Upload & Mint", description: "Mint NFTs" },
   ]
 
   const handleNext = () => {
-    if (currentStep < 2) {
+    if (currentStep < 4) {
       setCurrentStep(currentStep + 1)
     }
   }
@@ -132,6 +189,180 @@ export default function CreateICPCollectionPage() {
 
   const handleInputChange = (field: keyof CollectionFormData, value: string | boolean) => {
     setFormData((prev) => ({ ...prev, [field]: value }))
+  }
+
+  const handleApprove = async () => {
+    if (!identity || !creationFee) return
+    setIsApproving(true)
+    try {
+      const icpActor = await getICRC2Actor(identity, icpCanisterId)
+      const approvalAmount = creationFee + BigInt(10_000)
+
+      const result = await icpActor.icrc2_approve({
+        spender: { owner: Principal.fromText(marketplaceCanisterId), subaccount: [] as [] },
+        amount: approvalAmount,
+        fee: [] as [],
+        memo: [] as [],
+        from_subaccount: [] as [],
+        created_at_time: [] as [],
+        expected_allowance: [] as [],
+        expires_at: [] as [],
+      })
+
+      if ('Ok' in result) {
+        toast.success("ICP approved successfully!")
+        setIsApproved(true)
+        setCurrentAllowance(approvalAmount)
+        await saveDraft(draftId, formData, undefined, undefined, undefined, {
+          currentStep,
+          isApproved: true,
+        })
+      } else {
+        throw new Error(Object.keys(result.Err)[0])
+      }
+    } catch (error) {
+      console.error("Approval failed:", error)
+      toast.error("Failed to approve ICP")
+    } finally {
+      setIsApproving(false)
+    }
+  }
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      const files = Array.from(e.target.files)
+      const maxSupply = formData.unlimitedSupply ? Infinity : parseInt(formData.maxSupply)
+      if (files.length > maxSupply) {
+        toast.error(`You can only mint up to ${maxSupply} NFTs`)
+        return
+      }
+      setUploadFiles(files)
+    }
+  }
+
+  const handleMintNFTs = async () => {
+    const hasPendingRequests = pendingMintRequests.length > 0
+    if (!identity || !formData.collectionCanisterId || (uploadFiles.length === 0 && !hasPendingRequests)) return
+
+    setIsMinting(true)
+    setMintProgress(0)
+    setMintStatus("Preparing...")
+
+    try {
+      const nftActor = await getICRC7NftActor(identity, formData.collectionCanisterId)
+      const userPrincipal = identity.getPrincipal()
+
+      const mintRequests: Array<{
+        owner: Principal
+        metadata: Array<[string, unknown]>
+        memo: string
+      }> = []
+
+      if (hasPendingRequests) {
+        setMintStatus("Resuming from saved uploads...")
+        setMintProgress(70)
+        toast.info("Resuming mint from previously uploaded files")
+
+        for (const req of pendingMintRequests) {
+          mintRequests.push({
+            owner: Principal.fromText(req.ownerPrincipal),
+            metadata: req.metadata,
+            memo: req.memo,
+          })
+        }
+      } else {
+        const uploadProgress = 70 / uploadFiles.length
+        const serializedRequests: SerializedMintRequest[] = []
+
+        for (let i = 0; i < uploadFiles.length; i++) {
+          const file = uploadFiles[i]
+          const nftNumber = i + 1
+          setMintStatus(`Uploading ${file.name} (${i + 1}/${uploadFiles.length})`)
+
+          const { metadataUrl, imageUrl } = await uploadAssetWithMetadata(
+            nftActor,
+            file,
+            `${formData.name} #${nftNumber}`,
+            `NFT #${nftNumber} from ${formData.name} collection`,
+            formData.collectionCanisterId,
+            [
+              { trait_type: "Collection", value: formData.name },
+              { trait_type: "Number", value: nftNumber },
+            ],
+            (progress) => {
+              setMintProgress(i * uploadProgress + (progress / 100) * uploadProgress)
+            }
+          )
+
+          const icrc3Metadata = metadataUrlToICRC3Value(metadataUrl, imageUrl)
+          mintRequests.push({
+            owner: userPrincipal,
+            metadata: icrc3Metadata,
+            memo: `${formData.name} #${nftNumber}`,
+          })
+
+          serializedRequests.push({
+            ownerPrincipal: userPrincipal.toText(),
+            metadata: icrc3Metadata as Array<[string, Record<string, unknown>]>,
+            memo: `${formData.name} #${nftNumber}`,
+          })
+
+          setMintProgress((i + 1) * uploadProgress)
+        }
+
+        setMintStatus("Saving upload progress...")
+        await saveDraft(draftId, formData, undefined, undefined, undefined, {
+          currentStep,
+          isApproved,
+          registryId: formData.registryId,
+          pendingMintRequests: serializedRequests,
+        })
+        setPendingMintRequests(serializedRequests)
+      }
+
+      setMintStatus(`Minting ${mintRequests.length} NFTs...`)
+      setMintProgress(70)
+
+      await mintNFTBatch(nftActor, mintRequests as Parameters<typeof mintNFTBatch>[1], (current, total) => {
+        setMintProgress(70 + (current / total) * 25)
+        setMintStatus(`Minting: ${current}/${total}`)
+      })
+
+      setMintProgress(95)
+      setMintStatus("Activating collection...")
+
+      if (formData.registryId) {
+        const registryActor = await getRegistryActor(identity)
+        await registryActor.update_collection_status({
+          collection_id: formData.registryId,
+          status: { Active: null }
+        })
+      }
+
+      setMintProgress(100)
+      setMintStatus("Complete!")
+      toast.success(`Successfully minted ${mintRequests.length} NFTs!`)
+
+      setPendingMintRequests([])
+      await deleteDraft(draftId)
+
+      setTimeout(() => {
+        getRegistryActor(identity).then(async (actor) => {
+          if (formData.registryId) {
+            const result = await actor.get_collection(formData.registryId)
+            if (result[0]?.slug) {
+              router.push(`/nft/collections/icp/${result[0].slug}`)
+            }
+          }
+        })
+      }, 2000)
+    } catch (error) {
+      console.error("Minting error:", error)
+      toast.error("Failed to mint NFTs. You can retry - uploads are saved.")
+      setMintStatus("")
+    } finally {
+      setIsMinting(false)
+    }
   }
 
   const handleDeployClick = async () => {
@@ -147,7 +378,7 @@ export default function CreateICPCollectionPage() {
 
     try {
       setIsDeploying(true)
-      setDeploymentStep("Creating collection canister...")
+      setDeploymentStep("Deploying ICRC7 canister...")
 
       const actor = await getICPMarketplaceActor(identity)
 
@@ -160,7 +391,6 @@ export default function CreateICPCollectionPage() {
         collection_metadata: [],
       }
 
-      setDeploymentStep("Deploying ICRC7 canister...")
       const result = await actor.create_collection(createArgs)
 
       if ('Err' in result) {
@@ -172,33 +402,8 @@ export default function CreateICPCollectionPage() {
       const { collection_canister_id } = result.Ok
       const canisterId = collection_canister_id.toString()
 
-      const updatedFormData = { ...formData, collectionCanisterId: canisterId }
-      setFormData(updatedFormData)
-      await saveDraft(draftId, updatedFormData, undefined, undefined)
+      setDeploymentStep("Registering in marketplace...")
 
-      toast.success("Collection canister deployed!")
-      setDeploymentStep("")
-    } catch (error) {
-      console.error("Deployment failed:", error)
-      toast.error("Failed to deploy collection", {
-        description: error instanceof Error ? error.message : "Please try again"
-      })
-      setDeploymentStep("")
-    } finally {
-      setIsDeploying(false)
-    }
-  }
-
-  const handleFinish = async () => {
-    if (!formData.collectionCanisterId) {
-      toast.error("Missing canister ID")
-      return
-    }
-
-    setIsDeploying(true)
-    setDeploymentStep("Registering collection...")
-
-    try {
       const registryActor = await getRegistryActor(identity)
       const createResult = await registryActor.create_collection({
         blockchain: { ICP: null },
@@ -216,44 +421,44 @@ export default function CreateICPCollectionPage() {
         tags: [],
         chain_data: {
           ICP: {
-            canister_id: [Principal.fromText(formData.collectionCanisterId)],
+            canister_id: [Principal.fromText(canisterId)],
             deployment_stage: { Deployed: null },
           }
         }
       })
 
       if ('Err' in createResult) {
-        throw new Error(`Registry registration failed: ${createResult.Err}`)
+        throw new Error(`Registry failed: ${JSON.stringify(createResult.Err)}`)
       }
 
       const registryId = createResult.Ok
-
-      setDeploymentStep("Activating collection...")
-      await registryActor.update_collection_status({
-        collection_id: registryId,
-        status: { Active: null }
+      const updatedFormData = { ...formData, collectionCanisterId: canisterId, registryId }
+      setFormData(updatedFormData)
+      await saveDraft(draftId, updatedFormData, undefined, undefined, undefined, {
+        currentStep: 4,
+        isApproved,
+        registryId,
       })
 
-      await deleteDraft(draftId)
-      toast.success("Collection published!")
-
-      const collectionResult = await registryActor.get_collection(registryId)
-      if (!collectionResult[0]?.slug) {
-        throw new Error("Failed to retrieve collection slug")
-      }
-      router.push(`/nft/collections/icp/manage/${collectionResult[0].slug}`)
-    } catch (error: any) {
-      console.error("Finish failed:", error)
-      toast.error(`Failed to publish: ${error.message || 'Unknown error'}`)
+      toast.success("Collection deployed!")
+      setDeploymentStep("")
+      setCurrentStep(4)
+    } catch (error) {
+      console.error("Deployment failed:", error)
+      toast.error("Failed to deploy collection", {
+        description: error instanceof Error ? error.message : "Please try again"
+      })
       setDeploymentStep("")
     } finally {
       setIsDeploying(false)
     }
   }
 
-  const progress = (currentStep / 2) * 100
+  const progress = (currentStep / 4) * 100
 
   const isStep1Valid = formData.name.length > 0 && formData.symbol.length > 0
+  const isStep2Valid = isApproved || (creationFee ? currentAllowance >= creationFee : false)
+  const isStep3Valid = !!formData.collectionCanisterId
 
   return (
     <AuthGuard>
@@ -302,8 +507,8 @@ export default function CreateICPCollectionPage() {
                     {step.description}
                   </div>
                 </div>
-                {step.id < 2 && (
-                  <div className="w-24 h-px bg-muted mx-4 hidden sm:block" />
+                {step.id < 4 && (
+                  <div className="w-12 h-px bg-muted mx-2 hidden sm:block" />
                 )}
               </div>
             ))}
@@ -407,96 +612,168 @@ export default function CreateICPCollectionPage() {
 
                 {currentStep === 2 && (
                   <div className="space-y-6">
-                    <div className="space-y-4">
-                      <h4 className="font-semibold">Collection Summary</h4>
-                      <div className="space-y-2 bg-muted/50 p-4 rounded-lg">
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">Name:</span>
-                          <span className="font-medium">{formData.name}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">Symbol:</span>
-                          <span className="font-medium">{formData.symbol}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">Supply:</span>
-                          <span className="font-medium">
-                            {formData.unlimitedSupply ? "Unlimited" : formData.maxSupply}
-                          </span>
-                        </div>
-                        {creationFee && (
-                          <div className="flex justify-between">
-                            <span className="text-muted-foreground">Creation Fee:</span>
-                            <span className="font-medium">{formatICP(creationFee)} ICP</span>
-                          </div>
-                        )}
+                    <div className="space-y-2 bg-muted/50 p-4 rounded-lg">
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Your ICP Balance:</span>
+                        <span className="font-medium">{formatICP(icpBalance)} ICP</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Creation Fee:</span>
+                        <span className="font-medium">{creationFee ? formatICP(creationFee) : "..."} ICP</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Current Allowance:</span>
+                        <span className="font-medium">{formatICP(currentAllowance)} ICP</span>
                       </div>
                     </div>
 
-                    {formData.collectionCanisterId && (
+                    {isApproved ? (
+                      <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
+                        <div className="flex items-center gap-3">
+                          <CheckCircle className="h-5 w-5 text-green-600" />
+                          <span className="font-medium text-green-900 dark:text-green-100">ICP Approved</span>
+                        </div>
+                      </div>
+                    ) : (
+                      <Button
+                        onClick={handleApprove}
+                        disabled={isApproving || !creationFee || icpBalance < creationFee}
+                        className="w-full bg-purple-600 hover:bg-purple-700"
+                      >
+                        {isApproving ? (
+                          <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Approving...</>
+                        ) : (
+                          <><Wallet className="mr-2 h-4 w-4" />Approve {creationFee ? formatICP(creationFee) : "..."} ICP</>
+                        )}
+                      </Button>
+                    )}
+
+                    {creationFee && icpBalance < creationFee && (
+                      <div className="bg-red-50 dark:bg-red-950/20 p-4 rounded-lg">
+                        <div className="flex items-start gap-3">
+                          <Info className="h-5 w-5 text-red-600 mt-0.5" />
+                          <span className="text-sm text-red-700 dark:text-red-300">
+                            Insufficient ICP balance. You need at least {formatICP(creationFee)} ICP.
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {currentStep === 3 && (
+                  <div className="space-y-6">
+                    <div className="space-y-2 bg-muted/50 p-4 rounded-lg">
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Name:</span>
+                        <span className="font-medium">{formData.name}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Symbol:</span>
+                        <span className="font-medium">{formData.symbol}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Supply:</span>
+                        <span className="font-medium">{formData.unlimitedSupply ? "Unlimited" : formData.maxSupply}</span>
+                      </div>
+                    </div>
+
+                    {formData.collectionCanisterId ? (
                       <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
                         <div className="flex items-start gap-3">
                           <CheckCircle className="h-5 w-5 text-green-600 mt-0.5" />
                           <div className="text-sm">
-                            <div className="font-medium text-green-900 dark:text-green-100 mb-1">
-                              Canister Deployed
-                            </div>
-                            <p className="font-mono text-xs break-all text-green-700 dark:text-green-300">
-                              {formData.collectionCanisterId}
-                            </p>
+                            <div className="font-medium text-green-900 dark:text-green-100 mb-1">Canister Deployed</div>
+                            <p className="font-mono text-xs break-all text-green-700 dark:text-green-300">{formData.collectionCanisterId}</p>
                           </div>
                         </div>
                       </div>
+                    ) : (
+                      <Button
+                        onClick={handleDeployClick}
+                        disabled={isDeploying || !isAuthenticated}
+                        className="w-full bg-purple-600 hover:bg-purple-700"
+                      >
+                        {isDeploying ? (
+                          <><Loader2 className="mr-2 h-4 w-4 animate-spin" />{deploymentStep || "Deploying..."}</>
+                        ) : (
+                          <><Rocket className="mr-2 h-4 w-4" />Deploy Collection</>
+                        )}
+                      </Button>
                     )}
+                  </div>
+                )}
 
-                    <div className="space-y-4">
-                      <h4 className="font-semibold">Deployment Steps</h4>
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-2">
-                          {formData.collectionCanisterId ? (
-                            <CheckCircle className="h-4 w-4 text-green-600" />
-                          ) : isDeploying ? (
-                            <Loader2 className="h-4 w-4 animate-spin text-purple-600" />
-                          ) : (
-                            <div className="h-4 w-4 rounded-full border-2 border-purple-600" />
-                          )}
-                          <span className="text-sm">
-                            {formData.collectionCanisterId ? "ICRC7 canister deployed" : isDeploying ? deploymentStep : "Deploy ICRC7 canister"}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
+                {currentStep === 4 && (
+                  <div className="space-y-6">
                     <div className="bg-blue-50 dark:bg-blue-950/20 p-4 rounded-lg">
                       <div className="flex items-start gap-3">
-                        <Info className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" />
-                        <div className="text-sm">
-                          <div className="font-medium text-blue-900 dark:text-blue-100 mb-1">
-                            On-Chain Storage
-                          </div>
-                          <div className="text-blue-700 dark:text-blue-200">
-                            After deployment, you&apos;ll upload your NFT images and metadata directly to the
-                            collection canister. No external storage (IPFS/Arweave) required.
-                          </div>
-                        </div>
+                        <Info className="h-5 w-5 text-blue-600 mt-0.5" />
+                        <p className="text-sm text-blue-800 dark:text-blue-200">
+                          Upload your NFT images. They will be stored on-chain in your canister.
+                        </p>
                       </div>
                     </div>
 
-                    {!isAuthenticated && (
-                      <div className="bg-yellow-50 dark:bg-yellow-950/20 p-4 rounded-lg">
-                        <div className="flex items-start gap-3">
-                          <Info className="h-5 w-5 text-yellow-600 mt-0.5 flex-shrink-0" />
-                          <div className="text-sm">
-                            <div className="font-medium text-yellow-900 dark:text-yellow-100 mb-1">
-                              Not Connected
+                    <div className="space-y-2">
+                      <Label>Select NFT Images</Label>
+                      <Input
+                        type="file"
+                        multiple
+                        accept="image/*"
+                        onChange={handleFileSelect}
+                        disabled={isMinting}
+                        className="cursor-pointer"
+                      />
+                    </div>
+
+                    {pendingMintRequests.length > 0 && (
+                      <div className="p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+                        <h3 className="font-medium text-yellow-800 dark:text-yellow-200">
+                          {pendingMintRequests.length} uploads ready to mint
+                        </h3>
+                        <p className="text-sm text-yellow-600 dark:text-yellow-400 mt-1">
+                          Previous upload completed. Click below to resume minting.
+                        </p>
+                      </div>
+                    )}
+
+                    {uploadFiles.length > 0 && pendingMintRequests.length === 0 && (
+                      <div className="space-y-3">
+                        <h3 className="font-medium">Selected Files ({uploadFiles.length})</h3>
+                        <div className="grid grid-cols-4 md:grid-cols-6 gap-2 max-h-48 overflow-y-auto">
+                          {uploadFiles.map((file, index) => (
+                            <div key={index} className="border rounded-lg p-1">
+                              <img src={URL.createObjectURL(file)} alt={file.name} className="w-full aspect-square object-cover rounded" />
                             </div>
-                            <div className="text-yellow-700 dark:text-yellow-200">
-                              Please connect your Internet Identity to deploy the collection
-                            </div>
-                          </div>
+                          ))}
                         </div>
                       </div>
                     )}
+
+                    {isMinting && (
+                      <div className="space-y-2">
+                        <div className="flex justify-between text-sm">
+                          <span>{mintStatus}</span>
+                          <span>{Math.round(mintProgress)}%</span>
+                        </div>
+                        <Progress value={mintProgress} className="h-2" />
+                      </div>
+                    )}
+
+                    <Button
+                      onClick={handleMintNFTs}
+                      disabled={(uploadFiles.length === 0 && pendingMintRequests.length === 0) || isMinting}
+                      className="w-full bg-green-600 hover:bg-green-700"
+                    >
+                      {isMinting ? (
+                        <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Minting...</>
+                      ) : pendingMintRequests.length > 0 ? (
+                        <><Rocket className="mr-2 h-4 w-4" />Resume Minting ({pendingMintRequests.length} NFTs)</>
+                      ) : (
+                        <><ImageIcon className="mr-2 h-4 w-4" />{uploadFiles.length > 0 ? `Mint ${uploadFiles.length} NFTs` : "Select files to mint"}</>
+                      )}
+                    </Button>
                   </div>
                 )}
               </CardContent>
@@ -506,60 +783,19 @@ export default function CreateICPCollectionPage() {
               <Button
                 variant="outline"
                 onClick={handlePrevious}
-                disabled={currentStep === 1 || isDeploying}
+                disabled={currentStep === 1 || isDeploying || isMinting}
               >
                 Previous
               </Button>
-              <div className="flex gap-2">
-                {currentStep < 2 ? (
-                  <Button onClick={handleNext} disabled={!isStep1Valid}>
-                    Next
-                  </Button>
-                ) : (
-                  <>
-                    <Button
-                      onClick={handleDeployClick}
-                      disabled={isDeploying || !isAuthenticated || !!formData.collectionCanisterId}
-                      variant={formData.collectionCanisterId ? "outline" : "default"}
-                      className={!formData.collectionCanisterId ? "bg-purple-600 hover:bg-purple-700" : ""}
-                    >
-                      {isDeploying && !formData.collectionCanisterId ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          {deploymentStep || "Deploying..."}
-                        </>
-                      ) : formData.collectionCanisterId ? (
-                        <>
-                          <CheckCircle className="mr-2 h-4 w-4" />
-                          Deployed
-                        </>
-                      ) : (
-                        <>
-                          <Rocket className="mr-2 h-4 w-4" />
-                          Deploy
-                        </>
-                      )}
-                    </Button>
-                    <Button
-                      onClick={handleFinish}
-                      disabled={isDeploying || !formData.collectionCanisterId}
-                      className="bg-green-600 hover:bg-green-700"
-                    >
-                      {isDeploying && formData.collectionCanisterId ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Publishing...
-                        </>
-                      ) : (
-                        <>
-                          <CheckCircle className="mr-2 h-4 w-4" />
-                          Finish
-                        </>
-                      )}
-                    </Button>
-                  </>
-                )}
-              </div>
+              {currentStep === 1 && (
+                <Button onClick={handleNext} disabled={!isStep1Valid}>Next</Button>
+              )}
+              {currentStep === 2 && (
+                <Button onClick={handleNext} disabled={!isStep2Valid}>Next</Button>
+              )}
+              {currentStep === 3 && formData.collectionCanisterId && (
+                <Button onClick={handleNext}>Next</Button>
+              )}
             </div>
           </div>
 

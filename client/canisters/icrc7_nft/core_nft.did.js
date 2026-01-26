@@ -1,6 +1,6 @@
 export const idlFactory = ({ IDL }) => {
-  const GetBlocksResult = IDL.Rec();
   const ICRC3Value = IDL.Rec();
+  const Vec = IDL.Rec();
   const BuildVersion = IDL.Record({
     'major' : IDL.Nat32,
     'minor' : IDL.Nat32,
@@ -65,21 +65,9 @@ export const idlFactory = ({ IDL }) => {
     'symbol' : IDL.Text,
     'approval_init' : InitApprovalsArg,
   });
-  const Args_9 = IDL.Variant({ 'Upgrade' : UpgradeArgs, 'Init' : InitArgs });
-  const BurnNftError = IDL.Variant({
-    'StorageCanisterError' : IDL.Text,
-    'TokenDoesNotExist' : IDL.Null,
-    'ConcurrentManagementCall' : IDL.Null,
-    'NotTokenOwner' : IDL.Null,
-  });
-  const Result = IDL.Variant({ 'Ok' : IDL.Null, 'Err' : BurnNftError });
+  const Args_13 = IDL.Variant({ 'Upgrade' : UpgradeArgs, 'Init' : InitArgs });
   const Args = IDL.Record({ 'file_path' : IDL.Text });
-  const CancelUploadError = IDL.Variant({ 'UploadNotInitialized' : IDL.Null });
-  const Result_1 = IDL.Variant({
-    'Ok' : IDL.Record({}),
-    'Err' : CancelUploadError,
-  });
-  const FinalizeUploadResp = IDL.Record({ 'url' : IDL.Text });
+  const Args_1 = IDL.Record({ 'files' : IDL.Vec(Args) });
   const FinalizeUploadError = IDL.Variant({
     'IncompleteUpload' : IDL.Null,
     'FileSizeMismatch' : IDL.Null,
@@ -87,7 +75,75 @@ export const idlFactory = ({ IDL }) => {
     'UploadNotStarted' : IDL.Null,
     'UploadAlreadyFinalized' : IDL.Null,
   });
-  const Result_2 = IDL.Variant({
+  const Result = IDL.Variant({ 'Ok' : IDL.Text, 'Err' : FinalizeUploadError });
+  const BatchFinalizeUploadResp = IDL.Record({ 'results' : IDL.Vec(Result) });
+  const BatchFinalizeUploadError = IDL.Variant({
+    'StorageCanisterError' : IDL.Text,
+    'ConcurrentManagementCall' : IDL.Null,
+  });
+  const Result_1 = IDL.Variant({
+    'Ok' : BatchFinalizeUploadResp,
+    'Err' : BatchFinalizeUploadError,
+  });
+  const Args_2 = IDL.Record({
+    'file_hash' : IDL.Text,
+    'file_path' : IDL.Text,
+    'file_size' : IDL.Nat64,
+    'chunk_size' : IDL.Opt(IDL.Nat64),
+  });
+  const Args_3 = IDL.Record({ 'files' : IDL.Vec(Args_2) });
+  const InitUploadError = IDL.Variant({
+    'NotEnoughStorage' : IDL.Null,
+    'FileAlreadyExists' : IDL.Null,
+    'InvalidChunkSize' : IDL.Null,
+  });
+  const Result_2 = IDL.Variant({ 'Ok' : IDL.Null, 'Err' : InitUploadError });
+  const BatchInitUploadResp = IDL.Record({ 'results' : IDL.Vec(Result_2) });
+  const BatchInitUploadError = IDL.Variant({
+    'StorageCanisterError' : IDL.Text,
+    'ConcurrentManagementCall' : IDL.Null,
+  });
+  const Result_3 = IDL.Variant({
+    'Ok' : BatchInitUploadResp,
+    'Err' : BatchInitUploadError,
+  });
+  const Args_4 = IDL.Record({
+    'chunk_id' : IDL.Nat,
+    'file_path' : IDL.Text,
+    'chunk_data' : IDL.Vec(IDL.Nat8),
+  });
+  const Args_5 = IDL.Record({ 'chunks' : IDL.Vec(Args_4) });
+  const StoreChunkError = IDL.Variant({
+    'InvalidFileHash' : IDL.Null,
+    'InvalidFilePath' : IDL.Null,
+    'InvalidFileSize' : IDL.Null,
+    'InvalidChunkId' : IDL.Null,
+    'UploadNotInitialized' : IDL.Null,
+    'InvalidChunkData' : IDL.Null,
+    'InvalidFileFormat' : IDL.Null,
+    'UploadAlreadyFinalized' : IDL.Null,
+  });
+  const Result_4 = IDL.Variant({ 'Ok' : IDL.Null, 'Err' : StoreChunkError });
+  const BatchStoreChunksResp = IDL.Record({ 'results' : IDL.Vec(Result_4) });
+  const Result_5 = IDL.Variant({
+    'Ok' : BatchStoreChunksResp,
+    'Err' : BatchInitUploadError,
+  });
+  const BurnNftError = IDL.Variant({
+    'StorageCanisterError' : IDL.Text,
+    'TokenDoesNotExist' : IDL.Null,
+    'ConcurrentManagementCall' : IDL.Null,
+    'NotTokenOwner' : IDL.Null,
+  });
+  const Result_6 = IDL.Variant({ 'Ok' : IDL.Null, 'Err' : BurnNftError });
+  const Args_6 = IDL.Record({ 'file_path' : IDL.Text });
+  const CancelUploadError = IDL.Variant({ 'UploadNotInitialized' : IDL.Null });
+  const Result_7 = IDL.Variant({
+    'Ok' : IDL.Record({}),
+    'Err' : CancelUploadError,
+  });
+  const FinalizeUploadResp = IDL.Record({ 'url' : IDL.Text });
+  const Result_8 = IDL.Variant({
     'Ok' : FinalizeUploadResp,
     'Err' : FinalizeUploadError,
   });
@@ -97,7 +153,7 @@ export const idlFactory = ({ IDL }) => {
     'InProgress' : IDL.Null,
   });
   const GetAllUploadsError = IDL.Variant({ 'StorageCanisterError' : IDL.Text });
-  const Result_3 = IDL.Variant({
+  const Result_9 = IDL.Variant({
     'Ok' : IDL.Vec(IDL.Tuple(IDL.Text, UploadState)),
     'Err' : GetAllUploadsError,
   });
@@ -105,20 +161,20 @@ export const idlFactory = ({ IDL }) => {
     'StorageCanisterError' : IDL.Text,
     'UploadNotFound' : IDL.Null,
   });
-  const Result_4 = IDL.Variant({
+  const Result_10 = IDL.Variant({
     'Ok' : UploadState,
     'Err' : GetUploadStatusError,
   });
-  const Args_1 = IDL.Record({ 'principal' : IDL.Principal });
+  const Args_7 = IDL.Record({ 'principal' : IDL.Principal });
   const GetUserPermissionsError = IDL.Variant({
     'DefaultError' : IDL.Text,
     'UserNotFound' : IDL.Null,
   });
-  const Result_5 = IDL.Variant({
+  const Result_11 = IDL.Variant({
     'Ok' : IDL.Vec(Permission),
     'Err' : GetUserPermissionsError,
   });
-  const Args_2 = IDL.Record({
+  const Args_8 = IDL.Record({
     'permission' : Permission,
     'principal' : IDL.Principal,
   });
@@ -126,16 +182,19 @@ export const idlFactory = ({ IDL }) => {
     'ConcurrentManagementCall' : IDL.Null,
     'DefaultError' : IDL.Text,
   });
-  const Result_6 = IDL.Variant({
+  const Result_12 = IDL.Variant({
     'Ok' : IDL.Null,
     'Err' : GrantPermissionError,
   });
-  const Args_3 = IDL.Record({
+  const Args_9 = IDL.Record({
     'permission' : Permission,
     'principal' : IDL.Principal,
   });
   const HasPermissionError = IDL.Variant({ 'DefaultError' : IDL.Text });
-  const Result_7 = IDL.Variant({ 'Ok' : IDL.Bool, 'Err' : HasPermissionError });
+  const Result_13 = IDL.Variant({
+    'Ok' : IDL.Bool,
+    'Err' : HasPermissionError,
+  });
   const SupportedStandard = IDL.Record({ 'url' : IDL.Text, 'name' : IDL.Text });
   const ConsentMessageMetadata = IDL.Record({
     'utc_offset_minutes' : IDL.Opt(IDL.Int16),
@@ -176,7 +235,7 @@ export const idlFactory = ({ IDL }) => {
     'UnsupportedCanisterCall' : ErrorInfo,
     'ConsentMessageUnavailable' : ErrorInfo,
   });
-  const Result_8 = IDL.Variant({ 'Ok' : ConsentInfo, 'Err' : Icrc21Error });
+  const Result_14 = IDL.Variant({ 'Ok' : ConsentInfo, 'Err' : Icrc21Error });
   const Account = IDL.Record({
     'owner' : IDL.Principal,
     'subaccount' : IDL.Opt(IDL.Vec(IDL.Nat8)),
@@ -206,7 +265,7 @@ export const idlFactory = ({ IDL }) => {
     'Ok' : IDL.Nat,
     'Err' : ApproveCollectionError,
   });
-  const Result_9 = IDL.Variant({
+  const Result_15 = IDL.Variant({
     'Ok' : IDL.Vec(IDL.Opt(ApproveCollectionResult)),
     'Err' : ApproveCollectionError,
   });
@@ -233,7 +292,7 @@ export const idlFactory = ({ IDL }) => {
     'Ok' : IDL.Nat,
     'Err' : ApproveTokenError,
   });
-  const Result_10 = IDL.Variant({
+  const Result_16 = IDL.Variant({
     'Ok' : IDL.Vec(IDL.Opt(ApproveTokenResult)),
     'Err' : ApproveTokenError,
   });
@@ -265,7 +324,7 @@ export const idlFactory = ({ IDL }) => {
     'Ok' : IDL.Nat,
     'Err' : RevokeCollectionApprovalError,
   });
-  const Result_11 = IDL.Variant({
+  const Result_17 = IDL.Variant({
     'Ok' : IDL.Vec(IDL.Opt(RevokeCollectionApprovalResult)),
     'Err' : RevokeCollectionApprovalError,
   });
@@ -295,7 +354,7 @@ export const idlFactory = ({ IDL }) => {
     'Ok' : IDL.Nat,
     'Err' : RevokeTokenApprovalError,
   });
-  const Result_12 = IDL.Variant({
+  const Result_18 = IDL.Variant({
     'Ok' : IDL.Vec(IDL.Opt(RevokeTokenApprovalResponse)),
     'Err' : RevokeTokenApprovalError,
   });
@@ -327,7 +386,7 @@ export const idlFactory = ({ IDL }) => {
     'Ok' : IDL.Nat,
     'Err' : TransferFromError,
   });
-  const Result_13 = IDL.Variant({
+  const Result_19 = IDL.Variant({
     'Ok' : IDL.Vec(IDL.Opt(TransferFromResult)),
     'Err' : TransferFromError,
   });
@@ -341,6 +400,41 @@ export const idlFactory = ({ IDL }) => {
     'length' : IDL.Nat,
   });
   const BlockWithId = IDL.Record({ 'id' : IDL.Nat, 'block' : ICRC3Value });
+  Vec.fill(
+    IDL.Vec(
+      IDL.Record({
+        'args' : IDL.Vec(IDL.Record({ 'start' : IDL.Nat, 'length' : IDL.Nat })),
+        'callback' : IDL.Func(
+            [IDL.Vec(IDL.Record({ 'start' : IDL.Nat, 'length' : IDL.Nat }))],
+            [
+              IDL.Record({
+                'log_length' : IDL.Nat,
+                'blocks' : IDL.Vec(
+                  IDL.Record({
+                    'id' : IDL.Nat,
+                    'block' : IDL.Variant({
+                      'Int' : IDL.Int,
+                      'Map' : IDL.Vec(IDL.Tuple(IDL.Text, ICRC3Value)),
+                      'Nat' : IDL.Nat,
+                      'Blob' : IDL.Vec(IDL.Nat8),
+                      'Text' : IDL.Text,
+                      'Array' : IDL.Vec(ICRC3Value),
+                    }),
+                  })
+                ),
+                'archived_blocks' : Vec,
+              }),
+            ],
+            ['query'],
+          ),
+      })
+    )
+  );
+  const GetBlocksResult = IDL.Record({
+    'log_length' : IDL.Nat,
+    'blocks' : IDL.Vec(BlockWithId),
+    'archived_blocks' : Vec,
+  });
   const ArchivedBlocks = IDL.Record({
     'args' : IDL.Vec(GetBlocksRequest),
     'callback' : IDL.Func(
@@ -349,13 +443,11 @@ export const idlFactory = ({ IDL }) => {
         ['query'],
       ),
   });
-  GetBlocksResult.fill(
-    IDL.Record({
-      'log_length' : IDL.Nat,
-      'blocks' : IDL.Vec(BlockWithId),
-      'archived_blocks' : IDL.Vec(ArchivedBlocks),
-    })
-  );
+  const GetBlocksResult_1 = IDL.Record({
+    'log_length' : IDL.Nat,
+    'blocks' : IDL.Vec(BlockWithId),
+    'archived_blocks' : IDL.Vec(ArchivedBlocks),
+  });
   const Duration = IDL.Record({ 'secs' : IDL.Nat64, 'nanos' : IDL.Nat32 });
   const ICRC3Properties = IDL.Record({
     'max_blocks_per_response' : IDL.Nat,
@@ -399,19 +491,8 @@ export const idlFactory = ({ IDL }) => {
     }),
     'TooOld' : IDL.Null,
   });
-  const Result_14 = IDL.Variant({ 'Ok' : IDL.Nat, 'Err' : TransferError });
-  const Args_4 = IDL.Record({
-    'file_hash' : IDL.Text,
-    'file_path' : IDL.Text,
-    'file_size' : IDL.Nat64,
-    'chunk_size' : IDL.Opt(IDL.Nat64),
-  });
-  const InitUploadError = IDL.Variant({
-    'NotEnoughStorage' : IDL.Null,
-    'FileAlreadyExists' : IDL.Null,
-    'InvalidChunkSize' : IDL.Null,
-  });
-  const Result_15 = IDL.Variant({
+  const Result_20 = IDL.Variant({ 'Ok' : IDL.Nat, 'Err' : TransferError });
+  const Result_21 = IDL.Variant({
     'Ok' : IDL.Record({}),
     'Err' : InitUploadError,
   });
@@ -420,7 +501,7 @@ export const idlFactory = ({ IDL }) => {
     'memo' : IDL.Opt(IDL.Vec(IDL.Nat8)),
     'token_owner' : Account,
   });
-  const Args_5 = IDL.Record({ 'mint_requests' : IDL.Vec(MintRequest) });
+  const Args_10 = IDL.Record({ 'mint_requests' : IDL.Vec(MintRequest) });
   const MintError = IDL.Variant({
     'TokenAlreadyExists' : IDL.Null,
     'StorageCanisterError' : IDL.Text,
@@ -428,27 +509,12 @@ export const idlFactory = ({ IDL }) => {
     'InvalidMemo' : IDL.Null,
     'ConcurrentManagementCall' : IDL.Null,
   });
-  const Result_16 = IDL.Variant({ 'Ok' : IDL.Nat, 'Err' : MintError });
-  const Args_6 = IDL.Record({
-    'chunk_id' : IDL.Nat,
-    'file_path' : IDL.Text,
-    'chunk_data' : IDL.Vec(IDL.Nat8),
-  });
-  const StoreChunkError = IDL.Variant({
-    'InvalidFileHash' : IDL.Null,
-    'InvalidFilePath' : IDL.Null,
-    'InvalidFileSize' : IDL.Null,
-    'InvalidChunkId' : IDL.Null,
-    'UploadNotInitialized' : IDL.Null,
-    'InvalidChunkData' : IDL.Null,
-    'InvalidFileFormat' : IDL.Null,
-    'UploadAlreadyFinalized' : IDL.Null,
-  });
-  const Result_17 = IDL.Variant({
+  const Result_22 = IDL.Variant({ 'Ok' : IDL.Nat, 'Err' : MintError });
+  const Result_23 = IDL.Variant({
     'Ok' : IDL.Record({}),
     'Err' : StoreChunkError,
   });
-  const Args_7 = IDL.Record({
+  const Args_11 = IDL.Record({
     'supply_cap' : IDL.Opt(IDL.Nat),
     'tx_window' : IDL.Opt(IDL.Nat),
     'default_take_value' : IDL.Opt(IDL.Nat),
@@ -465,15 +531,11 @@ export const idlFactory = ({ IDL }) => {
     'collection_metadata' : IDL.Opt(IDL.Vec(IDL.Tuple(IDL.Text, CustomValue))),
     'symbol' : IDL.Opt(IDL.Text),
   });
-  const UpdateCollectionMetadataError = IDL.Variant({
-    'StorageCanisterError' : IDL.Text,
-    'ConcurrentManagementCall' : IDL.Null,
-  });
-  const Result_18 = IDL.Variant({
+  const Result_24 = IDL.Variant({
     'Ok' : IDL.Null,
-    'Err' : UpdateCollectionMetadataError,
+    'Err' : BatchInitUploadError,
   });
-  const Args_8 = IDL.Record({
+  const Args_12 = IDL.Record({
     'token_id' : IDL.Nat,
     'metadata' : IDL.Vec(IDL.Tuple(IDL.Text, CustomValue)),
   });
@@ -482,14 +544,17 @@ export const idlFactory = ({ IDL }) => {
     'TokenDoesNotExist' : IDL.Null,
     'ConcurrentManagementCall' : IDL.Null,
   });
-  const Result_19 = IDL.Variant({
+  const Result_25 = IDL.Variant({
     'Ok' : IDL.Nat,
     'Err' : UpdateNftMetadataError,
   });
   return IDL.Service({
-    'burn_nft' : IDL.Func([IDL.Nat], [Result], []),
-    'cancel_upload' : IDL.Func([Args], [Result_1], []),
-    'finalize_upload' : IDL.Func([Args], [Result_2], []),
+    'batch_finalize_upload' : IDL.Func([Args_1], [Result_1], []),
+    'batch_init_upload' : IDL.Func([Args_3], [Result_3], []),
+    'batch_store_chunks' : IDL.Func([Args_5], [Result_5], []),
+    'burn_nft' : IDL.Func([IDL.Nat], [Result_6], []),
+    'cancel_upload' : IDL.Func([Args_6], [Result_7], []),
+    'finalize_upload' : IDL.Func([Args_6], [Result_8], []),
     'get_all_storage_subcanisters' : IDL.Func(
         [],
         [IDL.Vec(IDL.Principal)],
@@ -497,13 +562,13 @@ export const idlFactory = ({ IDL }) => {
       ),
     'get_all_uploads' : IDL.Func(
         [IDL.Opt(IDL.Nat), IDL.Opt(IDL.Nat)],
-        [Result_3],
+        [Result_9],
         ['query'],
       ),
-    'get_upload_status' : IDL.Func([IDL.Text], [Result_4], ['query']),
-    'get_user_permissions' : IDL.Func([Args_1], [Result_5], ['query']),
-    'grant_permission' : IDL.Func([Args_2], [Result_6], []),
-    'has_permission' : IDL.Func([Args_3], [Result_7], ['query']),
+    'get_upload_status' : IDL.Func([IDL.Text], [Result_10], ['query']),
+    'get_user_permissions' : IDL.Func([Args_7], [Result_11], ['query']),
+    'grant_permission' : IDL.Func([Args_8], [Result_12], []),
+    'has_permission' : IDL.Func([Args_9], [Result_13], ['query']),
     'icrc10_supported_standards' : IDL.Func(
         [],
         [IDL.Vec(SupportedStandard)],
@@ -511,17 +576,17 @@ export const idlFactory = ({ IDL }) => {
       ),
     'icrc21_canister_call_consent_message' : IDL.Func(
         [ConsentMessageRequest],
-        [Result_8],
+        [Result_14],
         ['query'],
       ),
     'icrc37_approve_collection' : IDL.Func(
         [IDL.Vec(ApproveCollectionArg)],
-        [Result_9],
+        [Result_15],
         [],
       ),
     'icrc37_approve_tokens' : IDL.Func(
         [IDL.Vec(ApproveTokenArg)],
-        [Result_10],
+        [Result_16],
         [],
       ),
     'icrc37_get_collection_approvals' : IDL.Func(
@@ -547,17 +612,17 @@ export const idlFactory = ({ IDL }) => {
     'icrc37_max_revoke_approvals' : IDL.Func([], [IDL.Opt(IDL.Nat)], ['query']),
     'icrc37_revoke_collection_approvals' : IDL.Func(
         [IDL.Vec(RevokeCollectionApprovalArg)],
-        [Result_11],
+        [Result_17],
         [],
       ),
     'icrc37_revoke_token_approvals' : IDL.Func(
         [IDL.Vec(RevokeTokenApprovalArg)],
-        [Result_12],
+        [Result_18],
         [],
       ),
     'icrc37_transfer_from' : IDL.Func(
         [IDL.Vec(TransferFromArg)],
-        [Result_13],
+        [Result_19],
         [],
       ),
     'icrc3_get_archives' : IDL.Func(
@@ -567,7 +632,7 @@ export const idlFactory = ({ IDL }) => {
       ),
     'icrc3_get_blocks' : IDL.Func(
         [IDL.Vec(GetBlocksRequest)],
-        [GetBlocksResult],
+        [GetBlocksResult_1],
         ['query'],
       ),
     'icrc3_get_properties' : IDL.Func([IDL.Null], [ICRC3Properties], ['query']),
@@ -630,16 +695,16 @@ export const idlFactory = ({ IDL }) => {
     'icrc7_total_supply' : IDL.Func([], [IDL.Nat], ['query']),
     'icrc7_transfer' : IDL.Func(
         [IDL.Vec(TransferArg)],
-        [IDL.Vec(IDL.Opt(Result_14))],
+        [IDL.Vec(IDL.Opt(Result_20))],
         [],
       ),
     'icrc7_tx_window' : IDL.Func([], [IDL.Opt(IDL.Nat)], ['query']),
-    'init_upload' : IDL.Func([Args_4], [Result_15], []),
-    'mint' : IDL.Func([Args_5], [Result_16], []),
-    'revoke_permission' : IDL.Func([Args_3], [Result_6], []),
-    'store_chunk' : IDL.Func([Args_6], [Result_17], []),
-    'update_collection_metadata' : IDL.Func([Args_7], [Result_18], []),
-    'update_nft_metadata' : IDL.Func([Args_8], [Result_19], []),
+    'init_upload' : IDL.Func([Args_2], [Result_21], []),
+    'mint' : IDL.Func([Args_10], [Result_22], []),
+    'revoke_permission' : IDL.Func([Args_9], [Result_12], []),
+    'store_chunk' : IDL.Func([Args_4], [Result_23], []),
+    'update_collection_metadata' : IDL.Func([Args_11], [Result_24], []),
+    'update_nft_metadata' : IDL.Func([Args_12], [Result_25], []),
   });
 };
 export const init = ({ IDL }) => {
@@ -708,6 +773,6 @@ export const init = ({ IDL }) => {
     'symbol' : IDL.Text,
     'approval_init' : InitApprovalsArg,
   });
-  const Args_9 = IDL.Variant({ 'Upgrade' : UpgradeArgs, 'Init' : InitArgs });
-  return [Args_9];
+  const Args_13 = IDL.Variant({ 'Upgrade' : UpgradeArgs, 'Init' : InitArgs });
+  return [Args_13];
 };

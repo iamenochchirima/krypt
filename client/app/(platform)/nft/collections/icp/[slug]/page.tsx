@@ -32,7 +32,7 @@ import { getICPMarketplaceActor, getICRC7NftActor, getRegistryActor } from "@/pr
 import { toast } from "sonner"
 import type { CollectionInfo, ListingInfo } from "@/declarations/marketplace/marketplace.did"
 import type { Collection } from "@/declarations/registry/registry.did"
-import type { ICRC3Value } from "@/declarations/icrc7_nft/core_nft.did"
+import type { ICRC3Value } from "@/canisters/icrc7_nft/core_nft.did"
 
 interface NFTData {
   tokenId: bigint

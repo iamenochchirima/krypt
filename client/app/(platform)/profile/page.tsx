@@ -29,10 +29,16 @@ import {
   ChevronRight,
   Wallet,
   Receipt,
+  Copy,
+  Check,
+  RefreshCw,
 } from "lucide-react"
 import AuthGuard from "@/components/auth-guard"
 import { useAuth } from "@/providers/auth-context"
 import { WalletType } from "@/providers/types"
+import { getICRC2Actor } from "@/providers/actors/marketplace"
+import { icpCanisterId, kryptCanisterId } from "@/constants/canisters-config"
+import { Principal } from "@dfinity/principal"
 
 const recentActivity = [
   {
@@ -119,25 +125,6 @@ const userNFTs = [
   },
 ]
 
-// Mock token data
-const userTokens = [
-  {
-    id: 1,
-    name: "CDF",
-    balance: 120,
-    staked: 50,
-    value: "$240",
-    chain: "Ethereum",
-  },
-  {
-    id: 2,
-    name: "LEARN",
-    balance: 75,
-    staked: 0,
-    value: "$15",
-    chain: "Polygon",
-  },
-]
 
 // Mock security data
 const securityActivities = [
@@ -160,13 +147,64 @@ const securityActivities = [
 export default function ProfilePage() {
   const [mounted, setMounted] = useState(false)
   const [activeTab, setActiveTab] = useState("overview")
+  const [copiedPrincipal, setCopiedPrincipal] = useState(false)
+  const [icpBalance, setIcpBalance] = useState<bigint>(BigInt(0))
+  const [kryptBalance, setKryptBalance] = useState<bigint>(BigInt(0))
+  const [loadingBalances, setLoadingBalances] = useState(true)
   const router = useRouter()
-  const { user, principalId, sessionData, fetchingUser } = useAuth()
+  const { user, principalId, sessionData, fetchingUser, identity } = useAuth()
 
-  // Only show the component after mounting to avoid hydration mismatch
+  const handleCopyPrincipal = async () => {
+    if (principalId) {
+      await navigator.clipboard.writeText(principalId)
+      setCopiedPrincipal(true)
+      setTimeout(() => setCopiedPrincipal(false), 2000)
+    }
+  }
+
   useEffect(() => {
     setMounted(true)
   }, [])
+
+  const fetchBalances = async () => {
+    if (!identity || !principalId) {
+      setLoadingBalances(false)
+      return
+    }
+
+    try {
+      setLoadingBalances(true)
+      const principal = Principal.fromText(principalId)
+      const account = { owner: principal, subaccount: [] as [] }
+
+      const [icpActor, kryptActor] = await Promise.all([
+        getICRC2Actor(identity, icpCanisterId),
+        getICRC2Actor(identity, kryptCanisterId),
+      ])
+
+      const [icpBal, kryptBal] = await Promise.all([
+        icpActor.icrc1_balance_of(account),
+        kryptActor.icrc1_balance_of(account),
+      ])
+
+      setIcpBalance(icpBal)
+      setKryptBalance(kryptBal)
+    } catch (error) {
+      console.error("Error fetching token balances:", error)
+    } finally {
+      setLoadingBalances(false)
+    }
+  }
+
+  const handleRefresh = () => {
+    fetchBalances()
+  }
+
+  useEffect(() => {
+    if (mounted && identity && principalId) {
+      fetchBalances()
+    }
+  }, [mounted, identity, principalId])
 
   // Return a loading state or null while not mounted
   if (!mounted || fetchingUser) {
@@ -217,9 +255,20 @@ export default function ProfilePage() {
   return (
     <AuthGuard>
       <div className="container mx-auto px-4 py-24">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold mb-2">Account Dashboard</h1>
-          <p className="text-muted-foreground">Manage your profile, activities, and settings</p>
+        <div className="mb-8 flex items-start justify-between">
+          <div>
+            <h1 className="text-3xl font-bold mb-2">Account Dashboard</h1>
+            <p className="text-muted-foreground">Manage your profile, activities, and settings</p>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleRefresh}
+            disabled={loadingBalances}
+          >
+            <RefreshCw className={`h-4 w-4 mr-2 ${loadingBalances ? "animate-spin" : ""}`} />
+            Refresh
+          </Button>
         </div>
 
         <div className="grid grid-cols-1 gap-8 lg:grid-cols-4">
@@ -235,7 +284,22 @@ export default function ProfilePage() {
                       <AvatarFallback>{userData.username.substring(0, 2).toUpperCase()}</AvatarFallback>
                     </Avatar>
                     <h2 className="text-xl font-bold">{userData.username}</h2>
-                    <p className="text-sm text-muted-foreground mb-2">{userData.address}</p>
+                    <div className="flex items-center gap-1 mb-2">
+                      <p className="text-sm text-muted-foreground">{userData.address}</p>
+                      {principalId && (
+                        <button
+                          onClick={handleCopyPrincipal}
+                          className="p-1 hover:bg-muted rounded transition-colors flex-shrink-0"
+                          title="Copy principal"
+                        >
+                          {copiedPrincipal ? (
+                            <Check className="h-3.5 w-3.5 text-green-500" />
+                          ) : (
+                            <Copy className="h-3.5 w-3.5 text-muted-foreground hover:text-foreground" />
+                          )}
+                        </button>
+                      )}
+                    </div>
                     <div className="flex flex-wrap items-center justify-center gap-1 mb-4">
                       <Badge variant="outline" className="bg-crypto-purple/10 text-crypto-purple">
                         Level {userData.level}
@@ -391,8 +455,21 @@ export default function ProfilePage() {
                     <CardContent className="p-4">
                       <div className="flex flex-col items-center text-center">
                         <Coins className="h-8 w-8 text-crypto-yellow mb-2" />
-                        <p className="text-sm text-muted-foreground">Tokens</p>
-                        <p className="text-2xl font-bold">{userData.tokens} $CDF</p>
+                        <p className="text-sm text-muted-foreground">ICP Balance</p>
+                        <p className="text-2xl font-bold">
+                          {loadingBalances ? "..." : (Number(icpBalance) / 1e8).toFixed(2)}
+                        </p>
+                      </div>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent className="p-4">
+                      <div className="flex flex-col items-center text-center">
+                        <Coins className="h-8 w-8 text-crypto-purple mb-2" />
+                        <p className="text-sm text-muted-foreground">KRYPT Balance</p>
+                        <p className="text-2xl font-bold">
+                          {loadingBalances ? "..." : (Number(kryptBalance) / 1e8).toFixed(2)}
+                        </p>
                       </div>
                     </CardContent>
                   </Card>
@@ -594,35 +671,44 @@ export default function ProfilePage() {
                     </CardHeader>
                     <CardContent>
                       <div className="space-y-4">
-                        {userTokens.map((token) => (
-                          <div key={token.id} className="rounded-lg border p-4">
-                            <div className="flex items-center justify-between mb-2">
-                              <div className="flex items-center gap-2">
-                                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10">
-                                  <span className="text-xs font-bold">{token.name}</span>
+                        {loadingBalances ? (
+                          <div className="text-center py-4 text-muted-foreground">Loading balances...</div>
+                        ) : (
+                          <>
+                            <div className="rounded-lg border p-4">
+                              <div className="flex items-center justify-between mb-2">
+                                <div className="flex items-center gap-2">
+                                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10">
+                                    <span className="text-xs font-bold">ICP</span>
+                                  </div>
+                                  <div>
+                                    <p className="font-medium">ICP</p>
+                                    <p className="text-xs text-muted-foreground">Internet Computer</p>
+                                  </div>
                                 </div>
-                                <div>
-                                  <p className="font-medium">{token.name}</p>
-                                  <p className="text-xs text-muted-foreground">{token.chain}</p>
+                                <div className="text-right">
+                                  <p className="font-bold">{(Number(icpBalance) / 1e8).toFixed(4)} ICP</p>
                                 </div>
-                              </div>
-                              <div className="text-right">
-                                <p className="font-bold">{token.balance}</p>
-                                <p className="text-xs text-muted-foreground">≈ {token.value}</p>
                               </div>
                             </div>
-                            {token.staked > 0 && (
-                              <div className="mt-2 rounded-lg bg-muted p-2 text-sm">
-                                <div className="flex justify-between">
-                                  <span>Staked:</span>
-                                  <span className="font-medium">
-                                    {token.staked} {token.name}
-                                  </span>
+                            <div className="rounded-lg border p-4">
+                              <div className="flex items-center justify-between mb-2">
+                                <div className="flex items-center gap-2">
+                                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-crypto-purple/10">
+                                    <span className="text-xs font-bold text-crypto-purple">KPT</span>
+                                  </div>
+                                  <div>
+                                    <p className="font-medium">KRYPT</p>
+                                    <p className="text-xs text-muted-foreground">Internet Computer</p>
+                                  </div>
+                                </div>
+                                <div className="text-right">
+                                  <p className="font-bold">{(Number(kryptBalance) / 1e8).toFixed(4)} KRYPT</p>
                                 </div>
                               </div>
-                            )}
-                          </div>
-                        ))}
+                            </div>
+                          </>
+                        )}
                       </div>
                       <div className="mt-4 flex gap-2">
                         <Button className="flex-1">Stake Tokens</Button>

@@ -1,5 +1,11 @@
 import { openDB, DBSchema, IDBPDatabase } from 'idb'
 
+export interface SerializedMintRequest {
+  ownerPrincipal: string
+  metadata: Array<[string, Record<string, unknown>]>
+  memo: string
+}
+
 interface DraftDB extends DBSchema {
   drafts: {
     key: string
@@ -26,6 +32,10 @@ interface DraftDB extends DBSchema {
       }>
       lastUpdated: number
       blockchain: string
+      currentStep?: number
+      isApproved?: boolean
+      registryId?: string
+      pendingMintRequests?: SerializedMintRequest[]
     }
   }
 }
@@ -50,17 +60,38 @@ export async function saveDraft(
   formData: any,
   collectionImage?: File,
   bannerImage?: File,
-  nftAssets?: FileList | File[]
+  nftAssets?: FileList | File[],
+  options?: {
+    currentStep?: number
+    isApproved?: boolean
+    registryId?: string
+    pendingMintRequests?: SerializedMintRequest[]
+  }
 ) {
   const db = await getDB()
 
   const blockchain = draftId.split('-')[0]
 
+  const serializedFormData = { ...formData }
+
   const draft: any = {
     id: draftId,
-    formData,
+    formData: serializedFormData,
     lastUpdated: Date.now(),
     blockchain: blockchain,
+  }
+
+  if (options?.currentStep !== undefined) {
+    draft.currentStep = options.currentStep
+  }
+  if (options?.isApproved !== undefined) {
+    draft.isApproved = options.isApproved
+  }
+  if (options?.registryId !== undefined) {
+    draft.registryId = options.registryId
+  }
+  if (options?.pendingMintRequests !== undefined) {
+    draft.pendingMintRequests = options.pendingMintRequests
   }
 
   if (collectionImage) {
@@ -103,9 +134,15 @@ export async function loadDraft(draftId: string) {
 
   if (!draft) return null
 
+  const formData = { ...draft.formData }
+
   const result: any = {
-    formData: draft.formData,
+    formData,
     lastUpdated: draft.lastUpdated,
+    currentStep: draft.currentStep,
+    isApproved: draft.isApproved,
+    registryId: draft.registryId,
+    pendingMintRequests: draft.pendingMintRequests,
   }
 
   if (draft.collectionImage) {
