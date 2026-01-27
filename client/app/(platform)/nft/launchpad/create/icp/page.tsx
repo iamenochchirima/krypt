@@ -10,12 +10,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Upload, Eye, CheckCircle, Info, Rocket, Check, Clock, Loader2, Wallet, ImageIcon } from "lucide-react"
+import { Eye, CheckCircle, Info, Rocket, Check, Clock, Loader2, Wallet, ImageIcon, X, Plus } from "lucide-react"
 import { saveDraft, loadDraft, deleteDraft, SerializedMintRequest } from "@/lib/storage/draftStorage"
 import { useDebounce } from "@/hooks/useDebounce"
 import { useAuth } from "@/providers/auth-context"
 import { getICPMarketplaceActor, getRegistryActor, getICRC7NftActor, getICRC2Actor } from "@/providers/actors/marketplace"
-import { uploadAssetWithMetadata } from "@/lib/icp/fileUpload"
+import { prepareFilesForBatchUpload, batchUploadAssets } from "@/lib/icp/fileUpload"
 import { metadataUrlToICRC3Value, mintNFTBatch } from "@/lib/icp/nftMinting"
 import { toast } from "sonner"
 import { Principal } from "@dfinity/principal"
@@ -230,19 +230,44 @@ export default function CreateICPCollectionPage() {
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
-      const files = Array.from(e.target.files)
+      const newFiles = Array.from(e.target.files)
       const maxSupply = formData.unlimitedSupply ? Infinity : parseInt(formData.maxSupply)
-      if (files.length > maxSupply) {
-        toast.error(`You can only mint up to ${maxSupply} NFTs`)
-        return
-      }
-      setUploadFiles(files)
+
+      setUploadFiles(prev => {
+        const existingKeys = new Set(prev.map(f => `${f.name}-${f.size}-${f.lastModified}`))
+        const uniqueNewFiles = newFiles.filter(f => !existingKeys.has(`${f.name}-${f.size}-${f.lastModified}`))
+
+        if (uniqueNewFiles.length < newFiles.length) {
+          const duplicates = newFiles.length - uniqueNewFiles.length
+          toast.info(`${duplicates} duplicate file(s) skipped`)
+        }
+
+        const combined = [...prev, ...uniqueNewFiles]
+        if (combined.length > maxSupply) {
+          toast.error(`You can only mint up to ${maxSupply} NFTs. ${combined.length - maxSupply} file(s) not added.`)
+          return combined.slice(0, maxSupply)
+        }
+        return combined
+      })
+
+      e.target.value = ''
     }
+  }
+
+  const handleRemoveFile = (index: number) => {
+    setUploadFiles(prev => prev.filter((_, i) => i !== index))
+  }
+
+  const handleClearAllFiles = () => {
+    setUploadFiles([])
   }
 
   const handleMintNFTs = async () => {
     const hasPendingRequests = pendingMintRequests.length > 0
-    if (!identity || !formData.collectionCanisterId || (uploadFiles.length === 0 && !hasPendingRequests)) return
+
+    if (!identity || !formData.collectionCanisterId || (uploadFiles.length === 0 && !hasPendingRequests)) {
+      return
+    }
 
     setIsMinting(true)
     setMintProgress(0)
@@ -271,43 +296,42 @@ export default function CreateICPCollectionPage() {
           })
         }
       } else {
-        const uploadProgress = 70 / uploadFiles.length
+        setMintStatus("Preparing files for batch upload...")
+
+        const preparedFiles = await prepareFilesForBatchUpload(
+          uploadFiles,
+          formData.name,
+          (index) => [
+            { trait_type: "Collection", value: formData.name },
+            { trait_type: "Number", value: index + 1 },
+          ]
+        )
+
+        const uploadResults = await batchUploadAssets(
+          nftActor,
+          preparedFiles,
+          (current, total, status) => {
+            setMintProgress((current / total) * 70)
+            setMintStatus(status)
+          }
+        )
+
         const serializedRequests: SerializedMintRequest[] = []
-
-        for (let i = 0; i < uploadFiles.length; i++) {
-          const file = uploadFiles[i]
-          const nftNumber = i + 1
-          setMintStatus(`Uploading ${file.name} (${i + 1}/${uploadFiles.length})`)
-
-          const { metadataUrl, imageUrl } = await uploadAssetWithMetadata(
-            nftActor,
-            file,
-            `${formData.name} #${nftNumber}`,
-            `NFT #${nftNumber} from ${formData.name} collection`,
-            formData.collectionCanisterId,
-            [
-              { trait_type: "Collection", value: formData.name },
-              { trait_type: "Number", value: nftNumber },
-            ],
-            (progress) => {
-              setMintProgress(i * uploadProgress + (progress / 100) * uploadProgress)
-            }
-          )
-
+        for (let i = 0; i < uploadResults.length; i++) {
+          const { metadataUrl, imageUrl, name } = uploadResults[i]
           const icrc3Metadata = metadataUrlToICRC3Value(metadataUrl, imageUrl)
+
           mintRequests.push({
             owner: userPrincipal,
             metadata: icrc3Metadata,
-            memo: `${formData.name} #${nftNumber}`,
+            memo: name,
           })
 
           serializedRequests.push({
             ownerPrincipal: userPrincipal.toText(),
             metadata: icrc3Metadata as Array<[string, Record<string, unknown>]>,
-            memo: `${formData.name} #${nftNumber}`,
+            memo: name,
           })
-
-          setMintProgress((i + 1) * uploadProgress)
         }
 
         setMintStatus("Saving upload progress...")
@@ -740,11 +764,58 @@ export default function CreateICPCollectionPage() {
 
                     {uploadFiles.length > 0 && pendingMintRequests.length === 0 && (
                       <div className="space-y-3">
-                        <h3 className="font-medium">Selected Files ({uploadFiles.length})</h3>
-                        <div className="grid grid-cols-4 md:grid-cols-6 gap-2 max-h-48 overflow-y-auto">
+                        <div className="flex items-center justify-between">
+                          <h3 className="font-medium">Selected Files ({uploadFiles.length})</h3>
+                          <div className="flex gap-2">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => document.getElementById('add-more-files')?.click()}
+                              disabled={isMinting}
+                            >
+                              <Plus className="h-4 w-4 mr-1" />
+                              Add More
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={handleClearAllFiles}
+                              disabled={isMinting}
+                              className="text-red-600 hover:text-red-700"
+                            >
+                              Clear All
+                            </Button>
+                            <input
+                              id="add-more-files"
+                              type="file"
+                              multiple
+                              accept="image/*"
+                              onChange={handleFileSelect}
+                              className="hidden"
+                            />
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-4 md:grid-cols-6 gap-2 max-h-64 overflow-y-auto p-1">
                           {uploadFiles.map((file, index) => (
-                            <div key={index} className="border rounded-lg p-1">
-                              <img src={URL.createObjectURL(file)} alt={file.name} className="w-full aspect-square object-cover rounded" />
+                            <div key={`${file.name}-${file.size}-${index}`} className="relative group border rounded-lg p-1">
+                              <img
+                                src={URL.createObjectURL(file)}
+                                alt={file.name}
+                                className="w-full aspect-square object-cover rounded"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveFile(index)}
+                                disabled={isMinting}
+                                className="absolute -top-2 -right-2 bg-red-500 hover:bg-red-600 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50"
+                              >
+                                <X className="h-3 w-3" />
+                              </button>
+                              <p className="text-xs truncate mt-1 text-muted-foreground" title={file.name}>
+                                {file.name}
+                              </p>
                             </div>
                           ))}
                         </div>

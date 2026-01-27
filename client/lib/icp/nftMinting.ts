@@ -1,7 +1,7 @@
 import { ActorSubclass } from "@dfinity/agent";
 import { Principal } from "@dfinity/principal";
 import { ICRC7_NFT_SERVICE } from "@/constants/canisters-config";
-import type { ICRC3Value } from "@/canisters/icrc7_nft/core_nft.did";
+import type { ICRC3Value, Args_10, MintRequest } from "@/canisters/icrc7_nft/core_nft.did";
 
 export interface ICRC97Metadata {
   name: string;
@@ -40,14 +40,14 @@ export async function mintNFT(
   metadata: Array<[string, ICRC3Value]>,
   memo?: string
 ): Promise<bigint> {
-  const mintArgs = {
-    mint_requests: [
-      {
-        token_owner: { owner, subaccount: [] },
-        memo: memo ? [Array.from(new TextEncoder().encode(memo))] : [],
-        metadata,
-      },
-    ],
+  const mintRequest: MintRequest = {
+    token_owner: { owner, subaccount: [] },
+    memo: memo ? [Array.from(new TextEncoder().encode(memo))] : [],
+    metadata,
+  };
+
+  const mintArgs: Args_10 = {
+    mint_requests: [mintRequest],
   };
 
   const result = await nftActor.mint(mintArgs);
@@ -70,44 +70,26 @@ export async function mintNFTBatch(
   }>,
   onProgress?: (current: number, total: number) => void
 ): Promise<bigint> {
-  const CHUNK_SIZE = 10;
-  const CHUNK_DELAY = 3000;
-
   const totalNFTs = requests.length;
-  let firstTokenId: bigint | null = null;
 
-  for (let i = 0; i < totalNFTs; i += CHUNK_SIZE) {
-    const chunk = requests.slice(i, Math.min(i + CHUNK_SIZE, totalNFTs));
+  const mintRequests: MintRequest[] = requests.map((request) => ({
+    token_owner: { owner: request.owner, subaccount: [] },
+    memo: request.memo ? [Array.from(new TextEncoder().encode(request.memo))] : [],
+    metadata: request.metadata,
+  }));
 
-    const mintArgs = {
-      mint_requests: chunk.map((request) => ({
-        token_owner: { owner: request.owner, subaccount: [] },
-        memo: request.memo ? [Array.from(new TextEncoder().encode(request.memo))] : [],
-        metadata: request.metadata,
-      })),
-    };
+  const mintArgs: Args_10 = { mint_requests: mintRequests };
 
-    const result = await nftActor.mint(mintArgs);
+  const result = await nftActor.mint(mintArgs);
 
-    if ("Ok" in result) {
-      if (firstTokenId === null) {
-        firstTokenId = result.Ok;
-      }
-      onProgress?.(i + chunk.length, totalNFTs);
-
-      if (i + CHUNK_SIZE < totalNFTs) {
-        await new Promise((resolve) => setTimeout(resolve, CHUNK_DELAY));
-      }
-    } else if ("Err" in result) {
-      throw new Error(`Batch minting failed: ${JSON.stringify(result.Err)}`);
-    }
+  if ("Ok" in result) {
+    onProgress?.(totalNFTs, totalNFTs);
+    return result.Ok;
+  } else if ("Err" in result) {
+    throw new Error(`Batch minting failed: ${JSON.stringify(result.Err)}`);
   }
 
-  if (firstTokenId === null) {
-    throw new Error("No tokens were minted");
-  }
-
-  return firstTokenId;
+  throw new Error("Unexpected minting response format");
 }
 
 export function createTextMetadata(key: string, value: string): [string, ICRC3Value] {
