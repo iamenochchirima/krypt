@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useMemo } from "react"
+import { useState, useEffect, useMemo, useCallback } from "react"
 import { useParams } from "next/navigation"
 import Link from "next/link"
 import Image from "next/image"
@@ -16,23 +16,36 @@ import { cn } from "@/lib/utils"
 import {
   ArrowLeft,
   Search,
-  TrendingUp,
-  TrendingDown,
   LayoutGrid,
   LayoutList,
   ExternalLink,
   Share2,
   Heart,
-  MoreHorizontal,
   Loader2,
   Settings,
+  ChevronLeft,
+  ChevronRight,
+  Tag,
+  XCircle,
 } from "lucide-react"
 import { useAuth } from "@/providers/auth-context"
-import { getICPMarketplaceActor, getICRC7NftActor, getRegistryActor } from "@/providers/actors/marketplace"
+import {
+  getICPMarketplaceActor,
+  getICRC7NftActor,
+  getRegistryActor,
+  getICRC2Actor,
+} from "@/providers/actors/marketplace"
+import { marketplaceCanisterId, icpCanisterId } from "@/constants/canisters-config"
 import { toast } from "sonner"
 import type { CollectionInfo, ListingInfo } from "@/declarations/marketplace/marketplace.did"
 import type { Collection } from "@/declarations/registry/registry.did"
 import type { ICRC3Value } from "@/canisters/icrc7_nft/core_nft.did"
+import {
+  approveAndListNFT,
+  buyNFT,
+  cancelListing,
+  formatPriceICP,
+} from "@/lib/icp/listing"
 
 interface NFTData {
   tokenId: bigint
@@ -42,6 +55,8 @@ interface NFTData {
   owner: string
   listing?: ListingInfo
 }
+
+const ITEMS_PER_PAGE = 20
 
 export default function ICPCollectionPage() {
   const params = useParams()
@@ -61,18 +76,23 @@ export default function ICPCollectionPage() {
   const [searchQuery, setSearchQuery] = useState("")
   const [sortBy, setSortBy] = useState("price-low")
   const [statusFilter, setStatusFilter] = useState("all")
+  const [currentPage, setCurrentPage] = useState(0)
 
   const [selectedNft, setSelectedNft] = useState<NFTData | null>(null)
   const [buyModalOpen, setBuyModalOpen] = useState(false)
   const [buying, setBuying] = useState(false)
 
-  useEffect(() => {
-    if (slug) {
-      fetchCollectionData()
-    }
-  }, [slug, identity])
+  const [listModalOpen, setListModalOpen] = useState(false)
+  const [listPrice, setListPrice] = useState("")
+  const [listDuration, setListDuration] = useState("")
+  const [listing, setListing] = useState(false)
 
-  const fetchCollectionData = async () => {
+  const [cancelModalOpen, setCancelModalOpen] = useState(false)
+  const [cancelling, setCancelling] = useState(false)
+
+  const userPrincipal = identity?.getPrincipal()?.toString()
+
+  const fetchCollectionData = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
@@ -97,10 +117,9 @@ export default function ICPCollectionPage() {
       const collectionCanisterId = collectionPrincipal.toText()
       setCanisterId(collectionCanisterId)
 
-      const principal = collectionPrincipal
       const marketActor = await getICPMarketplaceActor(identity)
 
-      const collectionResult = await marketActor.get_collection_info(principal)
+      const collectionResult = await marketActor.get_collection_info(collectionPrincipal)
       if ("Ok" in collectionResult) {
         setCollection(collectionResult.Ok)
       } else {
@@ -108,70 +127,87 @@ export default function ICPCollectionPage() {
         return
       }
 
-      const listingsResult = await marketActor.get_listings_by_collection(principal, [], [])
-      if (listingsResult.listings) {
-        setListings(listingsResult.listings.filter((l) => "Active" in l.status))
-      }
+      const listingsResult = await marketActor.get_listings_by_collection(collectionPrincipal, [], [BigInt(1000)])
+      const activeListings = listingsResult.listings?.filter((l: ListingInfo) => "Active" in l.status) || []
+      setListings(activeListings)
 
-      await fetchNFTs(collectionCanisterId)
+      await fetchNFTs(collectionCanisterId, activeListings, collectionResult.Ok)
     } catch (err) {
       console.error("Error fetching collection:", err)
       setError("Failed to load collection")
     } finally {
       setLoading(false)
     }
-  }
+  }, [slug, identity])
 
-  const fetchNFTs = async (nftCanisterId: string) => {
+  useEffect(() => {
+    if (slug) {
+      fetchCollectionData()
+    }
+  }, [slug, identity, fetchCollectionData])
+
+  const fetchNFTs = async (
+    nftCanisterId: string,
+    activeListings: ListingInfo[],
+    collectionInfo: CollectionInfo
+  ) => {
     setLoadingNfts(true)
     try {
       const nftActor = await getICRC7NftActor(identity, nftCanisterId)
 
-      const tokenIds = await nftActor.icrc7_tokens([], [BigInt(100)])
-      if (tokenIds.length === 0) {
+      const allTokenIds: bigint[] = []
+      let prev: [] | [bigint] = []
+      const pageSize = BigInt(100)
+      while (true) {
+        const batch = await nftActor.icrc7_tokens(prev, [pageSize])
+        if (batch.length === 0) break
+        allTokenIds.push(...batch)
+        if (batch.length < Number(pageSize)) break
+        prev = [batch[batch.length - 1]]
+      }
+
+      if (allTokenIds.length === 0) {
         setNfts([])
         return
       }
 
-      const metadataResults = await nftActor.icrc7_token_metadata(tokenIds)
-      const ownerResults = await nftActor.icrc7_owner_of(tokenIds)
+      const listingsByToken = new Map<string, ListingInfo>()
+      for (const l of activeListings) {
+        listingsByToken.set(l.token_id.toString(), l)
+      }
 
       const nftData: NFTData[] = []
+      const batchSize = 100
+      for (let b = 0; b < allTokenIds.length; b += batchSize) {
+        const batchIds = allTokenIds.slice(b, b + batchSize)
+        const [metadataResults, ownerResults] = await Promise.all([
+          nftActor.icrc7_token_metadata(batchIds),
+          nftActor.icrc7_owner_of(batchIds),
+        ])
 
-      for (let i = 0; i < tokenIds.length; i++) {
-        const tokenId = tokenIds[i]
-        const metadata = metadataResults[i]?.[0] || []
-        const owner = ownerResults[i]?.[0]
+        for (let i = 0; i < batchIds.length; i++) {
+          const tokenId = batchIds[i]
+          const metadata = metadataResults[i]?.[0] || []
+          const owner = ownerResults[i]?.[0]
 
-        let name = `#${tokenId.toString()}`
-        let image = ""
+          let name = `#${tokenId.toString()}`
+          let image = ""
 
-        for (const [key, value] of metadata) {
-          if (key === "icrc7:metadata:uri:image" && "Text" in value) {
-            image = value.Text
+          for (const [key, value] of metadata) {
+            if (key === "icrc7:metadata:uri:image" && "Text" in value) {
+              image = value.Text
+            }
           }
-          if (key === "icrc7:token:metadata" && "Text" in value) {
-            try {
-              const metadataUrl = value.Text
-              if (metadataUrl.startsWith("http")) {
-                image = image || metadataUrl
-              }
-            } catch {}
-          }
+
+          nftData.push({
+            tokenId,
+            name: `${collectionInfo.name} ${name}`,
+            image,
+            metadata,
+            owner: owner ? owner.owner.toString() : "Unknown",
+            listing: listingsByToken.get(tokenId.toString()),
+          })
         }
-
-        const listing = listings.find(
-          (l) => l.token_id === tokenId && l.collection_id.toString() === canisterId
-        )
-
-        nftData.push({
-          tokenId,
-          name: collection ? `${collection.name} ${name}` : name,
-          image,
-          metadata,
-          owner: owner ? owner.owner.toString() : "Unknown",
-          listing,
-        })
       }
 
       setNfts(nftData)
@@ -191,21 +227,85 @@ export default function ICPCollectionPage() {
     setBuying(true)
     try {
       const marketActor = await getICPMarketplaceActor(identity)
-      const result = await marketActor.buy_nft({ listing_id: nft.listing.listing_id })
+      const icpActor = await getICRC2Actor(identity, icpCanisterId)
 
-      if ("Ok" in result) {
-        toast.success("NFT purchased successfully!")
-        setBuyModalOpen(false)
-        await fetchCollectionData()
-      } else {
-        const errorKey = Object.keys(result.Err)[0]
-        toast.error(`Purchase failed: ${errorKey}`)
-      }
-    } catch (err) {
+      await buyNFT(
+        icpActor,
+        marketActor,
+        nft.listing.listing_id,
+        nft.listing.price,
+        marketplaceCanisterId
+      )
+
+      toast.success("NFT purchased successfully!")
+      setBuyModalOpen(false)
+      setSelectedNft(null)
+      await fetchCollectionData()
+    } catch (err: any) {
       console.error("Buy error:", err)
-      toast.error("Failed to purchase NFT")
+      toast.error(err?.message || "Failed to purchase NFT")
     } finally {
       setBuying(false)
+    }
+  }
+
+  const handleListNFT = async () => {
+    if (!selectedNft || !identity || !isAuthenticated || !canisterId) return
+
+    const price = parseFloat(listPrice)
+    if (isNaN(price) || price <= 0) {
+      toast.error("Enter a valid price")
+      return
+    }
+
+    setListing(true)
+    try {
+      const nftActor = await getICRC7NftActor(identity, canisterId)
+      const marketActor = await getICPMarketplaceActor(identity)
+
+      const durationDays = listDuration ? parseInt(listDuration) : undefined
+
+      await approveAndListNFT(
+        nftActor,
+        marketActor,
+        canisterId,
+        selectedNft.tokenId,
+        price,
+        marketplaceCanisterId,
+        durationDays
+      )
+
+      toast.success("NFT listed successfully!")
+      setListModalOpen(false)
+      setSelectedNft(null)
+      setListPrice("")
+      setListDuration("")
+      await fetchCollectionData()
+    } catch (err: any) {
+      console.error("List error:", err)
+      toast.error(err?.message || "Failed to list NFT")
+    } finally {
+      setListing(false)
+    }
+  }
+
+  const handleCancelListing = async () => {
+    if (!selectedNft?.listing || !identity || !isAuthenticated) return
+
+    setCancelling(true)
+    try {
+      const marketActor = await getICPMarketplaceActor(identity)
+      await cancelListing(marketActor, selectedNft.listing.listing_id)
+
+      toast.success("Listing cancelled")
+      setCancelModalOpen(false)
+      setSelectedNft(null)
+      await fetchCollectionData()
+    } catch (err: any) {
+      console.error("Cancel error:", err)
+      toast.error(err?.message || "Failed to cancel listing")
+    } finally {
+      setCancelling(false)
     }
   }
 
@@ -244,12 +344,140 @@ export default function ICPCollectionPage() {
     return filtered
   }, [nfts, searchQuery, statusFilter, sortBy])
 
-  const isOwner = collection && identity && collection.creator.toString() === identity.getPrincipal().toString()
+  const ownedNFTs = useMemo(() => {
+    if (!userPrincipal) return []
+    return nfts.filter((nft) => nft.owner === userPrincipal)
+  }, [nfts, userPrincipal])
+
+  const totalPages = Math.ceil(filteredNFTs.length / ITEMS_PER_PAGE)
+  const paginatedNFTs = filteredNFTs.slice(
+    currentPage * ITEMS_PER_PAGE,
+    (currentPage + 1) * ITEMS_PER_PAGE
+  )
+
+  const ownedTotalPages = Math.ceil(ownedNFTs.length / ITEMS_PER_PAGE)
+  const [ownedPage, setOwnedPage] = useState(0)
+  const paginatedOwned = ownedNFTs.slice(
+    ownedPage * ITEMS_PER_PAGE,
+    (ownedPage + 1) * ITEMS_PER_PAGE
+  )
+
+  const isOwner =
+    collection && identity && collection.creator.toString() === identity.getPrincipal().toString()
+
+  const isOwnedByUser = (nft: NFTData) => userPrincipal && nft.owner === userPrincipal
+  const isListedByUser = (nft: NFTData) =>
+    nft.listing && userPrincipal && nft.listing.seller.toString() === userPrincipal
+
+  const renderNFTCard = (nft: NFTData) => (
+    <Card key={nft.tokenId.toString()} className="group overflow-hidden transition-all hover:shadow-lg">
+      <div className="relative aspect-square overflow-hidden bg-muted">
+        {nft.image ? (
+          <img
+            src={nft.image}
+            alt={nft.name}
+            className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+          />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-primary/20 to-primary/10">
+            <span className="text-4xl font-bold text-primary">#{nft.tokenId.toString()}</span>
+          </div>
+        )}
+        {nft.listing && (
+          <div className="absolute top-2 left-2">
+            <Badge className="bg-primary text-primary-foreground">
+              {formatPriceICP(nft.listing.price)} ICP
+            </Badge>
+          </div>
+        )}
+        {isOwnedByUser(nft) && (
+          <div className="absolute top-2 right-2">
+            <Badge variant="secondary">Owned</Badge>
+          </div>
+        )}
+      </div>
+      <CardContent className="p-4">
+        <div className="mb-2">
+          <h3 className="font-bold text-lg truncate">{nft.name}</h3>
+          <p className="text-xs text-muted-foreground truncate">Owner: {nft.owner.slice(0, 10)}...</p>
+        </div>
+
+        <div className="flex items-center justify-between mb-3">
+          <div>
+            <div className="text-xs text-muted-foreground">{nft.listing ? "Price" : "Not Listed"}</div>
+            <div className="font-bold">
+              {nft.listing ? `${formatICP(nft.listing.price)} ICP` : "--"}
+            </div>
+          </div>
+        </div>
+
+        {isListedByUser(nft) ? (
+          <Button
+            className="w-full"
+            variant="destructive"
+            size="sm"
+            onClick={() => {
+              setSelectedNft(nft)
+              setCancelModalOpen(true)
+            }}
+          >
+            <XCircle className="mr-2 h-4 w-4" />
+            Cancel Listing
+          </Button>
+        ) : isOwnedByUser(nft) && !nft.listing ? (
+          <Button
+            className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
+            size="sm"
+            onClick={() => {
+              setSelectedNft(nft)
+              setListModalOpen(true)
+            }}
+          >
+            <Tag className="mr-2 h-4 w-4" />
+            List for Sale
+          </Button>
+        ) : nft.listing ? (
+          <Button
+            className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
+            size="sm"
+            onClick={() => {
+              setSelectedNft(nft)
+              setBuyModalOpen(true)
+            }}
+            disabled={isOwnedByUser(nft) === true}
+          >
+            Buy Now
+          </Button>
+        ) : (
+          <Button className="w-full" variant="outline" size="sm" disabled>
+            Not Listed
+          </Button>
+        )}
+      </CardContent>
+    </Card>
+  )
+
+  const renderPagination = (page: number, total: number, setPage: (p: number) => void) => {
+    if (total <= 1) return null
+    return (
+      <div className="flex items-center justify-center gap-4 mt-6">
+        <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage(page - 1)}>
+          <ChevronLeft className="h-4 w-4 mr-1" /> Previous
+        </Button>
+        <span className="text-sm text-muted-foreground">
+          Page {page + 1} of {total}
+        </span>
+        <Button variant="outline" size="sm" disabled={page >= total - 1} onClick={() => setPage(page + 1)}>
+          Next <ChevronRight className="h-4 w-4 ml-1" />
+        </Button>
+      </div>
+    )
+  }
 
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
-        <Loader2 className="h-8 w-8 animate-spin text-purple-600" />
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     )
   }
@@ -290,7 +518,7 @@ export default function ICPCollectionPage() {
       </div>
 
       <div className="mb-8 rounded-xl overflow-hidden border">
-        <div className="relative h-48 md:h-64 w-full bg-gradient-to-br from-purple-500 to-indigo-600">
+        <div className="relative h-48 md:h-64 w-full bg-gradient-to-br from-primary to-primary/70">
           <div className="absolute inset-0 bg-gradient-to-t from-background via-background/50 to-transparent" />
         </div>
 
@@ -300,7 +528,7 @@ export default function ICPCollectionPage() {
               {collection.logo?.[0] ? (
                 <Image src={collection.logo[0]} alt={collection.name} fill className="object-cover" />
               ) : (
-                <div className="w-full h-full bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center">
+                <div className="w-full h-full bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center">
                   <span className="text-3xl font-bold text-white">{collection.symbol}</span>
                 </div>
               )}
@@ -314,7 +542,7 @@ export default function ICPCollectionPage() {
                   </div>
                   <p className="text-muted-foreground mb-2">{collection.symbol}</p>
                   <div className="flex items-center gap-2 mb-4">
-                    <Badge variant="outline" className="bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200">
+                    <Badge variant="outline" className="bg-primary/10 text-primary">
                       ICP
                     </Badge>
                     <Badge variant="outline">ICRC7</Badge>
@@ -366,7 +594,7 @@ export default function ICPCollectionPage() {
         <Card className="p-4">
           <div className="text-sm text-muted-foreground mb-1">Status</div>
           <div className="text-xl font-bold">
-            {"Active" in collection.status && <span className="text-green-600">Active</span>}
+            {"Active" in collection.status && <span className="text-primary">Active</span>}
             {"AssetsPending" in collection.status && <span className="text-yellow-600">Pending</span>}
             {"Paused" in collection.status && <span className="text-gray-600">Paused</span>}
           </div>
@@ -376,6 +604,9 @@ export default function ICPCollectionPage() {
       <Tabs defaultValue="items" className="mb-8">
         <TabsList>
           <TabsTrigger value="items">Items</TabsTrigger>
+          <TabsTrigger value="owned">
+            Owned {ownedNFTs.length > 0 && `(${ownedNFTs.length})`}
+          </TabsTrigger>
           <TabsTrigger value="activity">Activity</TabsTrigger>
         </TabsList>
 
@@ -388,11 +619,11 @@ export default function ICPCollectionPage() {
                   placeholder="Search by name..."
                   className="pl-10"
                   value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(0) }}
                 />
               </div>
 
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v); setCurrentPage(0) }}>
                 <SelectTrigger className="w-[160px]">
                   <SelectValue placeholder="Status" />
                 </SelectTrigger>
@@ -430,73 +661,21 @@ export default function ICPCollectionPage() {
 
           {loadingNfts ? (
             <div className="flex items-center justify-center py-12">
-              <Loader2 className="h-8 w-8 animate-spin text-purple-600" />
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
             </div>
           ) : (
-            <div
-              className={cn(
-                viewMode === "grid"
-                  ? "grid grid-cols-1 gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4"
-                  : "space-y-4"
-              )}
-            >
-              {filteredNFTs.map((nft) => (
-                <Card key={nft.tokenId.toString()} className="group overflow-hidden transition-all hover:shadow-lg">
-                  <div className="relative aspect-square overflow-hidden bg-muted">
-                    {nft.image ? (
-                      <img
-                        src={nft.image}
-                        alt={nft.name}
-                        className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-purple-100 to-indigo-100 dark:from-purple-900 dark:to-indigo-900">
-                        <span className="text-4xl font-bold text-purple-600 dark:text-purple-400">
-                          #{nft.tokenId.toString()}
-                        </span>
-                      </div>
-                    )}
-                    {nft.listing && (
-                      <div className="absolute top-2 left-2">
-                        <Badge className="bg-green-500">Listed</Badge>
-                      </div>
-                    )}
-                  </div>
-                  <CardContent className="p-4">
-                    <div className="mb-2">
-                      <h3 className="font-bold text-lg truncate">{nft.name}</h3>
-                      <p className="text-xs text-muted-foreground truncate">Owner: {nft.owner.slice(0, 10)}...</p>
-                    </div>
-
-                    <div className="flex items-center justify-between mb-3">
-                      <div>
-                        <div className="text-xs text-muted-foreground">{nft.listing ? "Price" : "Not Listed"}</div>
-                        <div className="font-bold">
-                          {nft.listing ? `${formatICP(nft.listing.price)} ICP` : "--"}
-                        </div>
-                      </div>
-                    </div>
-
-                    {nft.listing ? (
-                      <Button
-                        className="w-full bg-purple-600 hover:bg-purple-700"
-                        size="sm"
-                        onClick={() => {
-                          setSelectedNft(nft)
-                          setBuyModalOpen(true)
-                        }}
-                      >
-                        Buy Now
-                      </Button>
-                    ) : (
-                      <Button className="w-full" variant="outline" size="sm" disabled>
-                        Not Listed
-                      </Button>
-                    )}
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
+            <>
+              <div
+                className={cn(
+                  viewMode === "grid"
+                    ? "grid grid-cols-1 gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4"
+                    : "space-y-4"
+                )}
+              >
+                {paginatedNFTs.map(renderNFTCard)}
+              </div>
+              {renderPagination(currentPage, totalPages, setCurrentPage)}
+            </>
           )}
 
           {!loadingNfts && filteredNFTs.length === 0 && (
@@ -509,6 +688,28 @@ export default function ICPCollectionPage() {
           )}
         </TabsContent>
 
+        <TabsContent value="owned" className="mt-6">
+          {!isAuthenticated ? (
+            <div className="text-center py-12">
+              <div className="text-muted-foreground mb-2">Connect your wallet</div>
+              <p className="text-sm text-muted-foreground">Connect to see NFTs you own in this collection</p>
+            </div>
+          ) : ownedNFTs.length === 0 ? (
+            <div className="text-center py-12">
+              <div className="text-muted-foreground mb-2">No NFTs owned</div>
+              <p className="text-sm text-muted-foreground">You don&apos;t own any NFTs in this collection</p>
+            </div>
+          ) : (
+            <>
+              <div className="text-sm text-muted-foreground mb-4">{ownedNFTs.length} owned</div>
+              <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+                {paginatedOwned.map(renderNFTCard)}
+              </div>
+              {renderPagination(ownedPage, ownedTotalPages, setOwnedPage)}
+            </>
+          )}
+        </TabsContent>
+
         <TabsContent value="activity" className="mt-6">
           <div className="text-center py-12">
             <div className="text-muted-foreground mb-2">Activity Coming Soon</div>
@@ -517,6 +718,7 @@ export default function ICPCollectionPage() {
         </TabsContent>
       </Tabs>
 
+      {/* Buy Modal */}
       <Dialog open={buyModalOpen} onOpenChange={setBuyModalOpen}>
         <DialogContent>
           <DialogHeader>
@@ -529,18 +731,19 @@ export default function ICPCollectionPage() {
                 {selectedNft.image ? (
                   <img src={selectedNft.image} alt={selectedNft.name} className="w-24 h-24 rounded-lg object-cover" />
                 ) : (
-                  <div className="w-24 h-24 rounded-lg bg-purple-100 dark:bg-purple-900 flex items-center justify-center">
-                    <span className="text-xl font-bold">#{selectedNft.tokenId.toString()}</span>
+                  <div className="w-24 h-24 rounded-lg bg-primary/10 flex items-center justify-center">
+                    <span className="text-xl font-bold text-primary">#{selectedNft.tokenId.toString()}</span>
                   </div>
                 )}
                 <div>
                   <h3 className="font-bold">{selectedNft.name}</h3>
-                  <p className="text-2xl font-bold text-purple-600">{formatICP(selectedNft.listing.price)} ICP</p>
+                  <p className="text-2xl font-bold text-primary">{formatICP(selectedNft.listing.price)} ICP</p>
+                  <p className="text-xs text-muted-foreground">+ 0.0001 ICP transfer fee</p>
                 </div>
               </div>
 
               <Button
-                className="w-full bg-purple-600 hover:bg-purple-700"
+                className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
                 onClick={() => handleBuyNFT(selectedNft)}
                 disabled={buying}
               >
@@ -553,6 +756,118 @@ export default function ICPCollectionPage() {
                   "Confirm Purchase"
                 )}
               </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* List Modal */}
+      <Dialog open={listModalOpen} onOpenChange={setListModalOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>List NFT for Sale</DialogTitle>
+            <DialogDescription>Set a price to list {selectedNft?.name} on the marketplace</DialogDescription>
+          </DialogHeader>
+          {selectedNft && (
+            <div className="space-y-4">
+              <div className="flex items-center gap-4">
+                {selectedNft.image ? (
+                  <img src={selectedNft.image} alt={selectedNft.name} className="w-24 h-24 rounded-lg object-cover" />
+                ) : (
+                  <div className="w-24 h-24 rounded-lg bg-primary/10 flex items-center justify-center">
+                    <span className="text-xl font-bold text-primary">#{selectedNft.tokenId.toString()}</span>
+                  </div>
+                )}
+                <div>
+                  <h3 className="font-bold">{selectedNft.name}</h3>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-sm font-medium mb-1 block">Price (ICP)</label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  min="0.01"
+                  placeholder="0.00"
+                  value={listPrice}
+                  onChange={(e) => setListPrice(e.target.value)}
+                />
+              </div>
+
+              <div>
+                <label className="text-sm font-medium mb-1 block">Duration (days, optional)</label>
+                <Input
+                  type="number"
+                  min="1"
+                  placeholder="No expiry"
+                  value={listDuration}
+                  onChange={(e) => setListDuration(e.target.value)}
+                />
+              </div>
+
+              <Button
+                className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
+                onClick={handleListNFT}
+                disabled={listing || !listPrice}
+              >
+                {listing ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Listing...
+                  </>
+                ) : (
+                  "List for Sale"
+                )}
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Cancel Listing Modal */}
+      <Dialog open={cancelModalOpen} onOpenChange={setCancelModalOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Cancel Listing</DialogTitle>
+            <DialogDescription>Are you sure you want to cancel the listing for {selectedNft?.name}?</DialogDescription>
+          </DialogHeader>
+          {selectedNft?.listing && (
+            <div className="space-y-4">
+              <div className="flex items-center gap-4">
+                {selectedNft.image ? (
+                  <img src={selectedNft.image} alt={selectedNft.name} className="w-24 h-24 rounded-lg object-cover" />
+                ) : (
+                  <div className="w-24 h-24 rounded-lg bg-primary/10 flex items-center justify-center">
+                    <span className="text-xl font-bold text-primary">#{selectedNft.tokenId.toString()}</span>
+                  </div>
+                )}
+                <div>
+                  <h3 className="font-bold">{selectedNft.name}</h3>
+                  <p className="text-muted-foreground">Listed at {formatICP(selectedNft.listing.price)} ICP</p>
+                </div>
+              </div>
+
+              <div className="flex gap-3">
+                <Button variant="outline" className="flex-1" onClick={() => setCancelModalOpen(false)}>
+                  Keep Listed
+                </Button>
+                <Button
+                  variant="destructive"
+                  className="flex-1"
+                  onClick={handleCancelListing}
+                  disabled={cancelling}
+                >
+                  {cancelling ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Cancelling...
+                    </>
+                  ) : (
+                    "Cancel Listing"
+                  )}
+                </Button>
+              </div>
             </div>
           )}
         </DialogContent>
