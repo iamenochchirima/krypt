@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { Suspense, useState } from "react"
 import { useSearchParams } from "next/navigation"
 import AuthGuard from "@/components/auth-guard"
 import TypeSelector from "./components/TypeSelector"
@@ -9,7 +9,7 @@ import EditionCreationFlow from "./components/EditionCreationFlow"
 
 type CollectionType = "drop" | "edition" | null
 
-export default function CreateEthereumCollectionPage() {
+function CreateEthereumCollectionContent() {
   const searchParams = useSearchParams()
   const typeParam = searchParams.get('type') as CollectionType
   const [selectedType, setSelectedType] = useState<CollectionType>(typeParam)
@@ -28,5 +28,13 @@ export default function CreateEthereumCollectionPage() {
         )}
       </div>
     </AuthGuard>
+  )
+}
+
+export default function CreateEthereumCollectionPage() {
+  return (
+    <Suspense>
+      <CreateEthereumCollectionContent />
+    </Suspense>
   )
 }
