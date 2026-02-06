@@ -1,4 +1,4 @@
-# CryptoDotFun Product Roadmap
+# Krypt Product Roadmap
 
 ## Vision
 The smartest multi-chain NFT platform. Generate with AI. Mint to Bitcoin in one click. Trade across chains. Verify authenticity automatically.
@@ -399,8 +399,8 @@ Payment Verified → Content Decrypted → Delivered
 
 ## Competitive Positioning
 
-| Feature | OpenSea | Magic Eden | Gamma | CryptoDotFun |
-|---------|---------|------------|-------|--------------|
+| Feature | OpenSea | Magic Eden | Gamma | Krypt |
+|---------|---------|------------|-------|-------|
 | AI Art Generator | ❌ | ❌ | ❌ | ✅ |
 | AI Collection Builder | ❌ | ❌ | ❌ | ✅ |
 | One-Click Ordinals | ❌ | ❌ | Partial | ✅ |

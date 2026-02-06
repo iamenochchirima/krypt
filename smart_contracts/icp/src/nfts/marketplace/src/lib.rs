@@ -7,6 +7,7 @@ pub mod api;
 pub mod utils;
 pub mod constants;
 pub mod errors;
+pub mod guards;
 
 use types::*;
 use errors::MarketplaceError;

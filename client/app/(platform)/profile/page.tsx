@@ -72,7 +72,7 @@ const recentActivity = [
   {
     id: 5,
     type: "token",
-    title: "Staked 50 $CDF tokens",
+    title: "Staked 50 $KRYPT tokens",
     date: "1 month ago",
     reward: 5,
   },
@@ -233,7 +233,7 @@ export default function ProfilePage() {
   const userData = {
     address: principalId ? `${principalId.substring(0, 6)}...${principalId.slice(-4)}` : sessionData?.chainAddress?.substring(0, 10) + "..." || "Not connected",
     username: user?.username || "Crypto Explorer",
-    email: user?.email?.[0] || "user@cryptodotfun.com",
+    email: user?.email?.[0] || "user@krypt.fun",
     joinDate: user?.created_at ? new Date(Number(user.created_at) / 1000000).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : "Recently",
     avatar: "/crypto-user-avatar.png",
     level: 1,
@@ -598,7 +598,7 @@ export default function ProfilePage() {
                           </div>
                           {activity.reward > 0 && (
                             <div className="flex items-center gap-1 rounded-full bg-primary/10 px-2 py-1 text-xs font-medium text-primary">
-                              <Coins className="h-3 w-3" />+{activity.reward} $CDF
+                              <Coins className="h-3 w-3" />+{activity.reward} $KRYPT
                             </div>
                           )}
                         </div>
@@ -732,7 +732,7 @@ export default function ProfilePage() {
                             <BookOpen className="h-5 w-5 text-crypto-blue" />
                             <h3 className="font-medium">Complete Courses</h3>
                           </div>
-                          <p className="mb-2 text-sm text-muted-foreground">Earn up to 20 $CDF per course completion</p>
+                          <p className="mb-2 text-sm text-muted-foreground">Earn up to 20 $KRYPT per course completion</p>
                           <Button size="sm" variant="outline" asChild>
                             <Link href="/learn">Browse Courses</Link>
                           </Button>
@@ -743,7 +743,7 @@ export default function ProfilePage() {
                             <h3 className="font-medium">Participate in Bounties</h3>
                           </div>
                           <p className="mb-2 text-sm text-muted-foreground">
-                            Earn $CDF tokens for successful security audits
+                            Earn $KRYPT tokens for successful security audits
                           </p>
                           <Button size="sm" variant="outline" asChild>
                             <Link href="/secure">Find Bounties</Link>
@@ -754,7 +754,7 @@ export default function ProfilePage() {
                             <MessageSquare className="h-5 w-5 text-crypto-purple" />
                             <h3 className="font-medium">Write Blog Posts</h3>
                           </div>
-                          <p className="mb-2 text-sm text-muted-foreground">Earn 10-25 $CDF for quality content</p>
+                          <p className="mb-2 text-sm text-muted-foreground">Earn 10-25 $KRYPT for quality content</p>
                           <Button size="sm" variant="outline" asChild>
                             <Link href="/connect">Start Writing</Link>
                           </Button>

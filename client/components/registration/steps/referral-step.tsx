@@ -49,7 +49,7 @@ export default function ReferralStep() {
     <div className="space-y-6">
       <div className="text-center">
         <h2 className="text-2xl font-bold">How Did You Find Us?</h2>
-        <p className="text-muted-foreground mt-2">Help us understand how you discovered CryptoDotFun</p>
+        <p className="text-muted-foreground mt-2">Help us understand how you discovered Krypt</p>
       </div>
 
       <div className="space-y-4">

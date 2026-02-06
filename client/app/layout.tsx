@@ -12,7 +12,7 @@ import { ConfettiProvider } from "@/providers/confetti-provider"
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "CryptoDotFun - Learn, Earn, Secure, Connect",
+  title: "Krypt - Learn, Earn, Secure, Connect",
   description: "Your blockchain education and engagement platform",
 }
 

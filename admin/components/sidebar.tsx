@@ -25,7 +25,7 @@ export function Sidebar() {
   return (
     <div className="flex h-screen w-64 flex-col border-r bg-card">
       <div className="p-6">
-        <h1 className="text-xl font-bold">CryptoDotFun</h1>
+        <h1 className="text-xl font-bold">Krypt</h1>
         <p className="text-xs text-muted-foreground">Admin Panel</p>
       </div>
 

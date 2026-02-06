@@ -1,1 +1,1 @@
-# CryptoDotFun
+# Krypt

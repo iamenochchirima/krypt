@@ -11,6 +11,9 @@
   "identity_certifier": {
     "ic": "le5gl-3iaaa-aaaal-qsvia-cai"
   },
+  "marketplace": {
+    "ic": "fsbow-vaaaa-aaaal-quo6a-cai"
+  },
   "registry": {
     "ic": "fbrie-gqaaa-aaaal-qsuiq-cai"
   },

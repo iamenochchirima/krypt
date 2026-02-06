@@ -5,6 +5,7 @@ pub mod types;
 pub mod state;
 pub mod api;
 pub mod utils;
+pub mod guards;
 
 use types::*;
 

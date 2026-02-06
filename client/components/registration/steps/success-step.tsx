@@ -19,7 +19,7 @@ export default function SuccessStep() {
       <div>
         <h2 className="text-2xl font-bold">Registration Complete!</h2>
         <p className="text-muted-foreground mt-2">
-          Welcome to CryptoDotFun, {username}! Your account has been created successfully.
+          Welcome to Krypt, {username}! Your account has been created successfully.
         </p>
       </div>
 

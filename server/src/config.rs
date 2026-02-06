@@ -46,7 +46,7 @@ impl AppConfig {
             ic_host: ic_host.to_string(),
             network: network.to_string(),
             identity_pem_path: env::var("IDENTITY_PEM_PATH")
-                .unwrap_or_else(|_| "./dotfun_admin.pem".to_string()),
+                .unwrap_or_else(|_| "./krypt_admin.pem".to_string()),
             helius_api_key,
             helius_rpc_url,
         }
@@ -71,7 +71,7 @@ impl Default for AppConfig {
             ic_host: "http://127.0.0.1:4943".to_string(),
             network: "local".to_string(),
             redis_url: "".to_string(),
-            identity_pem_path: "./dotfun_admin.pem".to_string(),
+            identity_pem_path: "./krypt_admin.pem".to_string(),
             helius_api_key: "".to_string(),
             helius_rpc_url: "https://devnet.helius-rpc.com".to_string(),
         }

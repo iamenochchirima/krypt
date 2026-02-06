@@ -41,7 +41,7 @@ export default function PulsePage() {
       id: "platform-update",
       title: "Platform Update: Enhanced Security Features",
       description:
-        "We've added new security features to protect your assets and improve your experience on CryptoDotFun.",
+        "We've added new security features to protect your assets and improve your experience on Krypt.",
       image: "/news/security-update.png",
       category: "Platform Update",
       date: "1 day ago",
@@ -139,7 +139,7 @@ export default function PulsePage() {
       <div className="mb-12 text-center">
         <h1 className="mb-4 text-4xl font-bold md:text-5xl">Pulse</h1>
         <p className="mx-auto max-w-2xl text-lg text-muted-foreground">
-          Stay updated with the latest news, events, and activities happening across CryptoDotFun.
+          Stay updated with the latest news, events, and activities happening across Krypt.
         </p>
       </div>
 

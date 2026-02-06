@@ -17,7 +17,7 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             super_admin: Principal::anonymous(),
-            platform_name: String::from("CryptoDotFun"),
+            platform_name: String::from("Krypt"),
             initialized: false,
         }
     }
@@ -49,7 +49,7 @@ pub fn init_config(super_admin: Principal) {
     CONFIG.with(|c| {
         let config = Config {
             super_admin,
-            platform_name: String::from("CryptoDotFun"),
+            platform_name: String::from("Krypt"),
             initialized: true,
         };
         c.borrow_mut().set(config);

@@ -8,7 +8,7 @@ export default function ExplorePage() {
       <div className="text-center mb-12">
         <h1 className="text-3xl font-bold mb-2">Explore</h1>
         <p className="text-muted-foreground">
-          Discover all the services under CryptoDotFun.
+          Discover all the services under Krypt.
         </p>
       </div>
 

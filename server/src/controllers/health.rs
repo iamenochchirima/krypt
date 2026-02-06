@@ -11,9 +11,9 @@ pub async fn health_check() -> Result<impl Responder> {
 
 pub async fn api_info() -> Result<impl Responder> {
     Ok(HttpResponse::Ok().json(json!({
-        "name": "CryptoDotFun API",
+        "name": "Krypt API",
         "version": "1.0.0",
-        "description": "Backend API for CryptoDotFun platform",
+        "description": "Backend API for Krypt platform",
         "endpoints": {
             "health": "/health",
             "auth": "/api/auth",

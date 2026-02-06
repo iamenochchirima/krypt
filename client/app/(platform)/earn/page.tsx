@@ -9,7 +9,7 @@ export default function EarnPage() {
       <div className="mb-8 text-center">
         <h1 className="mb-4 text-4xl font-bold">Learn & Earn</h1>
         <p className="mx-auto max-w-2xl text-lg text-muted-foreground">
-          Earn $CDF tokens by learning, contributing, and participating in the CryptoDotFun ecosystem.
+          Earn $KRYPT tokens by learning, contributing, and participating in the Krypt ecosystem.
         </p>
       </div>
 
@@ -24,11 +24,11 @@ export default function EarnPage() {
               <h3 className="text-xl font-bold">Learning Rewards</h3>
             </div>
             <p className="mb-4 text-muted-foreground">
-              Complete courses and quizzes to earn $CDF tokens. The more you learn, the more you earn.
+              Complete courses and quizzes to earn $KRYPT tokens. The more you learn, the more you earn.
             </p>
             <div className="mb-4 rounded-lg border border-dashed p-3 text-center">
               <p className="text-sm text-muted-foreground">Up to</p>
-              <p className="text-2xl font-bold">20 $CDF</p>
+              <p className="text-2xl font-bold">20 $KRYPT</p>
               <p className="text-sm text-muted-foreground">per course</p>
             </div>
             <Button className="w-full" asChild>
@@ -44,11 +44,11 @@ export default function EarnPage() {
               <h3 className="text-xl font-bold">Contribution Rewards</h3>
             </div>
             <p className="mb-4 text-muted-foreground">
-              Write blog posts, participate in bounties, and contribute to the community to earn $CDF tokens.
+              Write blog posts, participate in bounties, and contribute to the community to earn $KRYPT tokens.
             </p>
             <div className="mb-4 rounded-lg border border-dashed p-3 text-center">
               <p className="text-sm text-muted-foreground">Up to</p>
-              <p className="text-2xl font-bold">50 $CDF</p>
+              <p className="text-2xl font-bold">50 $KRYPT</p>
               <p className="text-sm text-muted-foreground">per contribution</p>
             </div>
             <Button className="w-full" asChild>
@@ -64,11 +64,11 @@ export default function EarnPage() {
               <h3 className="text-xl font-bold">Referral Rewards</h3>
             </div>
             <p className="mb-4 text-muted-foreground">
-              Invite friends to join CryptoDotFun and earn $CDF tokens for each successful referral.
+              Invite friends to join Krypt and earn $KRYPT tokens for each successful referral.
             </p>
             <div className="mb-4 rounded-lg border border-dashed p-3 text-center">
               <p className="text-sm text-muted-foreground">Earn</p>
-              <p className="text-2xl font-bold">5 $CDF</p>
+              <p className="text-2xl font-bold">5 $KRYPT</p>
               <p className="text-sm text-muted-foreground">per signup</p>
             </div>
             <Button className="w-full">Invite Friends</Button>
@@ -111,7 +111,7 @@ export default function EarnPage() {
                   className="object-cover transition-transform duration-300 group-hover:scale-105"
                 />
                 <div className="absolute right-2 top-2 rounded-full bg-primary px-2 py-1 text-xs font-bold">
-                  {course.reward} $CDF
+                  {course.reward} $KRYPT
                 </div>
               </div>
               <h3 className="mb-4 text-xl font-bold">{course.title}</h3>
@@ -125,7 +125,7 @@ export default function EarnPage() {
 
       {/* Staking UI */}
       <div className="mb-12">
-        <h2 className="mb-6 text-2xl font-bold">Stake $CDF</h2>
+        <h2 className="mb-6 text-2xl font-bold">Stake $KRYPT</h2>
         <div className="rounded-lg border bg-card p-6">
           <div className="grid grid-cols-1 gap-8 md:grid-cols-2">
             <div>
@@ -161,14 +161,14 @@ export default function EarnPage() {
               <div>
                 <h3 className="mb-4 text-xl font-bold">Stake Your Tokens</h3>
                 <p className="mb-4 text-muted-foreground">
-                  Lock your $CDF tokens to unlock premium features and earn additional rewards.
+                  Lock your $KRYPT tokens to unlock premium features and earn additional rewards.
                 </p>
                 <div className="mb-4 rounded-lg border border-dashed p-4 text-center">
                   <p className="text-sm text-muted-foreground">Minimum Stake</p>
-                  <p className="text-2xl font-bold">50 $CDF</p>
+                  <p className="text-2xl font-bold">50 $KRYPT</p>
                 </div>
               </div>
-              <Button size="lg">Stake $CDF</Button>
+              <Button size="lg">Stake $KRYPT</Button>
             </div>
           </div>
         </div>
@@ -181,7 +181,7 @@ export default function EarnPage() {
           <div className="mb-6 text-center">
             <h3 className="mb-2 text-xl font-bold">Vote on Platform Features</h3>
             <p className="mx-auto max-w-2xl text-muted-foreground">
-              Use your $CDF tokens to vote on proposals and help shape the future of CryptoDotFun.
+              Use your $KRYPT tokens to vote on proposals and help shape the future of Krypt.
             </p>
           </div>
           <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">

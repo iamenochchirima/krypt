@@ -104,7 +104,7 @@ export default function LandingPage() {
           <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto mb-10">
             Trade, collect, learn, and play — all in one powerful platform.
             <br />
-            Experience the future of crypto with CryptoDotFun.
+            Experience the future of crypto with Krypt.
           </p>
 
           {/* CTA Buttons */}
@@ -200,7 +200,7 @@ export default function LandingPage() {
           <div className="grid lg:grid-cols-2 gap-16 items-center">
             {/* Left Content */}
             <div>
-              <p className="section-label mb-4">WHY CRYPTODOTFUN</p>
+              <p className="section-label mb-4">WHY KRYPT</p>
               <h2 className="text-3xl md:text-5xl font-bold mb-4">
                 Built for the
                 <br />
@@ -274,7 +274,7 @@ export default function LandingPage() {
               <span className="crypto-gradient-text">Crypto Journey?</span>
             </h2>
             <p className="text-muted-foreground mb-8 max-w-lg mx-auto">
-              Join CryptoDotFun and explore the future of digital assets.
+              Join Krypt and explore the future of digital assets.
               Get started in minutes.
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">

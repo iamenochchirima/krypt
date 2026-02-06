@@ -5,6 +5,7 @@ use canister_uuid::get_uuid;
 
 use crate::constants::ICP_LEDGER_CANISTER_ID;
 use crate::errors::MarketplaceError;
+use crate::guards::{require_not_anonymous, require_admin};
 use crate::state;
 use crate::types::*;
 use crate::utils::*;
@@ -14,6 +15,7 @@ pub async fn create_collection(
     args: CreateCollectionArgs,
 ) -> Result<CreateCollectionResponse, MarketplaceError> {
     let caller = ic_cdk::api::msg_caller();
+    require_not_anonymous(&caller)?;
     let current_time = ic_cdk::api::time();
 
     validate_collection_args(&args)?;
@@ -84,6 +86,7 @@ pub async fn create_collection(
 #[update]
 pub async fn activate_collection(collection_id: Principal) -> Result<(), MarketplaceError> {
     let caller = ic_cdk::api::msg_caller();
+    require_not_anonymous(&caller)?;
 
     let collection =
         state::get_collection(&collection_id).ok_or(MarketplaceError::CollectionNotFound)?;
@@ -110,6 +113,7 @@ pub async fn update_collection_status(
     status: CollectionStatus,
 ) -> Result<(), MarketplaceError> {
     let caller = ic_cdk::api::msg_caller();
+    require_not_anonymous(&caller)?;
 
     let collection =
         state::get_collection(&collection_id).ok_or(MarketplaceError::CollectionNotFound)?;
@@ -134,6 +138,7 @@ pub async fn get_user_collections(user: Principal) -> Vec<CollectionInfo> {
 #[update]
 pub async fn list_nft(args: ListNFTArgs) -> Result<String, MarketplaceError> {
     let caller = ic_cdk::api::msg_caller();
+    require_not_anonymous(&caller)?;
     let current_time = ic_cdk::api::time();
 
     validate_listing_args(&args)?;
@@ -167,6 +172,7 @@ pub async fn list_nft(args: ListNFTArgs) -> Result<String, MarketplaceError> {
 #[update]
 pub async fn buy_nft(args: BuyNFTArgs) -> Result<(), MarketplaceError> {
     let caller = ic_cdk::api::msg_caller();
+    require_not_anonymous(&caller)?;
     let current_time = ic_cdk::api::time();
 
     let listing_info =
@@ -228,6 +234,7 @@ pub async fn buy_nft(args: BuyNFTArgs) -> Result<(), MarketplaceError> {
 #[update]
 pub async fn cancel_listing(listing_id: String) -> Result<(), MarketplaceError> {
     let caller = ic_cdk::api::msg_caller();
+    require_not_anonymous(&caller)?;
 
     let listing_info =
         state::get_listing(&listing_id).ok_or(MarketplaceError::ListingNotFound)?;
@@ -249,11 +256,7 @@ pub async fn cancel_listing(listing_id: String) -> Result<(), MarketplaceError> 
 #[update]
 pub fn update_marketplace_config(config: MarketplaceConfig) -> Result<(), MarketplaceError> {
     let caller = ic_cdk::api::msg_caller();
-    let admin = state::get_admin();
-
-    if caller != admin {
-        return Err(MarketplaceError::NotAuthorized);
-    }
+    require_admin(&caller)?;
 
     state::update_config(config);
     Ok(())
@@ -262,11 +265,7 @@ pub fn update_marketplace_config(config: MarketplaceConfig) -> Result<(), Market
 #[update]
 pub fn update_collection_creation_fee(fee: Nat) -> Result<(), MarketplaceError> {
     let caller = ic_cdk::api::msg_caller();
-    let admin = state::get_admin();
-
-    if caller != admin {
-        return Err(MarketplaceError::NotAuthorized);
-    }
+    require_admin(&caller)?;
 
     state::update_collection_creation_fee(fee);
     Ok(())
@@ -275,11 +274,7 @@ pub fn update_collection_creation_fee(fee: Nat) -> Result<(), MarketplaceError> 
 #[update]
 pub fn update_marketplace_fee_percentage(percentage: u16) -> Result<(), MarketplaceError> {
     let caller = ic_cdk::api::msg_caller();
-    let admin = state::get_admin();
-
-    if caller != admin {
-        return Err(MarketplaceError::NotAuthorized);
-    }
+    require_admin(&caller)?;
 
     if percentage > 1000 {
         return Err(MarketplaceError::InvalidFeePercentage);
@@ -292,11 +287,7 @@ pub fn update_marketplace_fee_percentage(percentage: u16) -> Result<(), Marketpl
 #[update]
 pub fn transfer_admin(new_admin: Principal) -> Result<(), MarketplaceError> {
     let caller = ic_cdk::api::msg_caller();
-    let current_admin = state::get_admin();
-
-    if caller != current_admin {
-        return Err(MarketplaceError::NotAuthorized);
-    }
+    require_admin(&caller)?;
 
     state::transfer_admin(new_admin);
     Ok(())

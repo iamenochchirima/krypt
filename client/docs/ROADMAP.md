@@ -1,11 +1,11 @@
-# CryptoDotFun Development Roadmap
+# Krypt Development Roadmap
 ## Building the Future of AI-Powered Multi-Chain Crypto
 
 ---
 
 ## Overview
 
-This roadmap outlines the development journey of CryptoDotFun from initial concept to a fully-featured AI-powered crypto super app. Each phase builds upon previous achievements while introducing revolutionary features that push the boundaries of what's possible in Web3.
+This roadmap outlines the development journey of Krypt from initial concept to a fully-featured AI-powered crypto super app. Each phase builds upon previous achievements while introducing revolutionary features that push the boundaries of what's possible in Web3.
 
 ---
 
@@ -69,7 +69,7 @@ This roadmap outlines the development journey of CryptoDotFun from initial conce
 - Fully functional platform
 - 3+ play-to-earn games
 - Mobile applications
-- CDF token launch
+- KRYPT token launch
 
 ---
 
@@ -371,6 +371,6 @@ The journey ahead is ambitious, but with our talented team, supportive community
 *Next Review: April 2025*
 
 For the latest updates, join our community:
-- Discord: [discord.gg/cryptodotfun](https://discord.gg/cryptodotfun)
-- Twitter: [@cryptodotfun](https://twitter.com/cryptodotfun)
-- Telegram: [t.me/cryptodotfun](https://t.me/cryptodotfun)
+- Discord: [discord.gg/kryptdotfun](https://discord.gg/kryptdotfun)
+- Twitter: [@kryptdotfun](https://twitter.com/kryptdotfun)
+- Telegram: [t.me/kryptdotfun](https://t.me/kryptdotfun)

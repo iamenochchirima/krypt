@@ -1,4 +1,4 @@
-# CryptoDotFun
+# Krypt
 
 Multi-chain NFT marketplace supporting ICP, Solana, Ethereum, Bitcoin and more.
 

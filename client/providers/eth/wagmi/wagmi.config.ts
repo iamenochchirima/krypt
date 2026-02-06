@@ -28,7 +28,7 @@ function getConnectors() {
       walletConnect({
         projectId: WALLETCONNECT_PROJECT_ID,
         metadata: {
-          name: 'CryptoDotFun',
+          name: 'Krypt',
           description: 'NFT Launchpad & Marketplace',
           url: window.location.origin,
           icons: ['https://your-app-icon.com/icon.png']

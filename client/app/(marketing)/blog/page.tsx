@@ -140,7 +140,7 @@ export default function BlogPage() {
   return (
     <div className="container mx-auto px-4 py-24">
       <div className="mb-12 text-center">
-        <h1 className="mb-4 text-4xl font-bold md:text-5xl">CryptoDotFun Blog</h1>
+        <h1 className="mb-4 text-4xl font-bold md:text-5xl">Krypt Blog</h1>
         <p className="mx-auto max-w-2xl text-lg text-muted-foreground">
           Insights, tutorials, and news from the world of blockchain, crypto, and web3.
         </p>
@@ -266,7 +266,7 @@ export default function BlogPage() {
           <BookOpen className="mx-auto mb-4 h-12 w-12 text-primary" />
           <h2 className="mb-4 text-2xl font-bold">Subscribe to Our Newsletter</h2>
           <p className="mb-6 text-muted-foreground">
-            Get the latest articles, tutorials, and updates from CryptoDotFun delivered straight to your inbox.
+            Get the latest articles, tutorials, and updates from Krypt delivered straight to your inbox.
           </p>
           <div className="flex flex-col gap-4 sm:flex-row">
             <Input placeholder="Enter your email" type="email" className="flex-1" />

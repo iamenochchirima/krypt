@@ -1,11 +1,11 @@
-# CryptoDotFun AI Features
+# Krypt AI Features
 ## The Most Advanced AI-Powered Crypto Platform
 
 ---
 
 ## Executive Summary
 
-CryptoDotFun integrates cutting-edge artificial intelligence to create autonomous agents that manage, optimize, and grow users' crypto wealth. Our AI ecosystem includes trading bots, DeFi optimizers, NFT valuators, security guardians, and educational tutors - all working together to provide an unparalleled crypto experience.
+Krypt integrates cutting-edge artificial intelligence to create autonomous agents that manage, optimize, and grow users' crypto wealth. Our AI ecosystem includes trading bots, DeFi optimizers, NFT valuators, security guardians, and educational tutors - all working together to provide an unparalleled crypto experience.
 
 ---
 
@@ -627,7 +627,7 @@ class VoiceCommandProcessor:
 ## Competitive Advantages
 
 ### Production-Ready AI Strategy
-This API-first approach gives CryptoDotFun significant advantages:
+This API-first approach gives Krypt significant advantages:
 
 1. **Immediate Access**: Leverage state-of-the-art AI models without lengthy development cycles
 2. **Cost Efficiency**: Pay only for what you use with predictable scaling costs
@@ -642,12 +642,12 @@ The microservices approach ensures the platform can grow from thousands to milli
 
 ## Conclusion
 
-CryptoDotFun's AI ecosystem leverages industry-leading APIs and standard infrastructure to deliver advanced artificial intelligence capabilities across the crypto space. By using proven AI services from OpenAI, Anthropic, Google, and other leaders, we can focus on building exceptional user experiences rather than reinventing AI technology.
+Krypt's AI ecosystem leverages industry-leading APIs and standard infrastructure to deliver advanced artificial intelligence capabilities across the crypto space. By using proven AI services from OpenAI, Anthropic, Google, and other leaders, we can focus on building exceptional user experiences rather than reinventing AI technology.
 
 This pragmatic approach ensures reliability, performance, and cost-effectiveness while providing users with cutting-edge AI features that actively help them succeed in crypto markets.
 
 ---
 
-*For technical documentation and API access, visit [docs.cryptodot.fun/ai](https://docs.cryptodot.fun/ai)*
+*For technical documentation and API access, visit [docs.krypt.fun/ai](https://docs.krypt.fun/ai)*
 
 *Last Updated: January 2025*

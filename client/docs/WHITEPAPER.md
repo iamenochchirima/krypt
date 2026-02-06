@@ -1,4 +1,4 @@
-# CryptoDotFun Whitepaper
+# Krypt Whitepaper
 ## The AI-Powered Multi-Chain Web3 Super App
 
 **Version 1.0 | January 2025**
@@ -25,7 +25,7 @@
 
 ## Executive Summary
 
-CryptoDotFun is a revolutionary AI-powered multi-chain Web3 super app that combines education, gaming, NFT trading, DeFi services, and Bitcoin assets management into a single, intelligent ecosystem. By leveraging cutting-edge artificial intelligence and supporting over 10 blockchain networks, CryptoDotFun aims to become the primary gateway for both newcomers and veterans in the cryptocurrency space.
+Krypt is a revolutionary AI-powered multi-chain Web3 super app that combines education, gaming, NFT trading, DeFi services, and Bitcoin assets management into a single, intelligent ecosystem. By leveraging cutting-edge artificial intelligence and supporting over 10 blockchain networks, Krypt aims to become the primary gateway for both newcomers and veterans in the cryptocurrency space.
 
 ### Key Innovations
 
@@ -74,7 +74,7 @@ To democratize access to blockchain technology and create the most intelligent, 
 
 ## Solution Overview
 
-CryptoDotFun addresses these challenges through a comprehensive, AI-powered platform that unifies all aspects of the crypto experience:
+Krypt addresses these challenges through a comprehensive, AI-powered platform that unifies all aspects of the crypto experience:
 
 ### Unified Multi-Chain Platform
 - Single interface for all blockchain interactions
@@ -466,7 +466,7 @@ interface UniversalAsset {
 
 ## Tokenomics
 
-### CDF Token (CryptoDotFun Token)
+### KRYPT Token
 
 **Token Utilities**
 1. **Governance** - Vote on platform decisions
@@ -478,7 +478,7 @@ interface UniversalAsset {
 ### Token Distribution
 
 ```
-Total Supply: 1,000,000,000 CDF
+Total Supply: 1,000,000,000 KRYPT
 
 Distribution:
 - Community Rewards: 30% (300M)
@@ -755,11 +755,11 @@ interface StakingTiers {
 
 ## Conclusion
 
-CryptoDotFun represents the next evolution of cryptocurrency platforms - a truly intelligent, multi-chain super app that makes crypto accessible, profitable, and secure for everyone. By combining cutting-edge AI technology with comprehensive blockchain support, we're creating not just a platform, but an entire ecosystem that learns, adapts, and grows with its users.
+Krypt represents the next evolution of cryptocurrency platforms - a truly intelligent, multi-chain super app that makes crypto accessible, profitable, and secure for everyone. By combining cutting-edge AI technology with comprehensive blockchain support, we're creating not just a platform, but an entire ecosystem that learns, adapts, and grows with its users.
 
 Our vision extends beyond traditional crypto services. We're building the financial operating system of the future - one where AI agents work tirelessly to optimize your wealth, education is gamified and rewarding, and the complexity of blockchain technology is abstracted away behind an intuitive interface.
 
-The integration of Bitcoin assets alongside smart contract platforms, combined with our AI-first approach, positions CryptoDotFun as the definitive gateway to Web3. Whether you're a complete beginner looking to learn or a sophisticated trader seeking alpha, our platform provides the tools, intelligence, and opportunities you need to succeed.
+The integration of Bitcoin assets alongside smart contract platforms, combined with our AI-first approach, positions Krypt as the definitive gateway to Web3. Whether you're a complete beginner looking to learn or a sophisticated trader seeking alpha, our platform provides the tools, intelligence, and opportunities you need to succeed.
 
 As we move forward with our ambitious roadmap, we invite the global crypto community to join us in building this revolutionary platform. Together, we'll create a future where financial intelligence is democratized, and everyone has access to the tools that were once reserved for institutions.
 
@@ -767,13 +767,13 @@ As we move forward with our ambitious roadmap, we invite the global crypto commu
 
 ## Contact & Resources
 
-- **Website**: [cryptodot.fun](https://cryptodot.fun)
-- **Documentation**: [docs.cryptodot.fun](https://docs.cryptodot.fun)
-- **GitHub**: [github.com/cryptodotfun](https://github.com/cryptodotfun)
-- **Twitter**: [@cryptodotfun](https://twitter.com/cryptodotfun)
-- **Discord**: [discord.gg/cryptodotfun](https://discord.gg/cryptodotfun)
-- **Telegram**: [t.me/cryptodotfun](https://t.me/cryptodotfun)
-- **Email**: hello@cryptodot.fun
+- **Website**: [krypt.fun](https://krypt.fun)
+- **Documentation**: [docs.krypt.fun](https://docs.krypt.fun)
+- **GitHub**: [github.com/kryptdotfun](https://github.com/kryptdotfun)
+- **Twitter**: [@kryptdotfun](https://twitter.com/kryptdotfun)
+- **Discord**: [discord.gg/kryptdotfun](https://discord.gg/kryptdotfun)
+- **Telegram**: [t.me/kryptdotfun](https://t.me/kryptdotfun)
+- **Email**: hello@krypt.fun
 
 ---
 

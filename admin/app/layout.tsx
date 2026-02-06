@@ -9,8 +9,8 @@ import { Toaster } from "@/components/ui/sonner"
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "CryptoDotFun Admin",
-  description: "Admin dashboard for CryptoDotFun",
+  title: "Krypt Admin",
+  description: "Admin dashboard for Krypt",
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

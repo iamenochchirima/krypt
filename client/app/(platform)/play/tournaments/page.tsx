@@ -191,7 +191,7 @@ export default function TournamentsPage() {
             </div>
             <h3 className="mb-2 text-xl font-semibold">Win Rewards</h3>
             <p className="text-muted-foreground">
-              Top performers win crypto tokens, exclusive NFTs, and gain reputation in the CryptoDotFun community.
+              Top performers win crypto tokens, exclusive NFTs, and gain reputation in the Krypt community.
             </p>
           </div>
         </div>

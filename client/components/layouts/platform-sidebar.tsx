@@ -260,13 +260,13 @@ export function PlatformSidebar() {
           <Link href="/" className="flex items-center space-x-2 overflow-hidden">
             <Image
               src="/logo.png"
-              alt="CryptoDotFun Logo"
+              alt="Krypt Logo"
               width={32}
               height={32}
               className="rounded-md flex-shrink-0"
             />
             {!collapsed && (
-              <span className="text-lg font-bold text-white whitespace-nowrap">CryptoDotFun</span>
+              <span className="text-lg font-bold text-white whitespace-nowrap">Krypt</span>
             )}
           </Link>
         </div>

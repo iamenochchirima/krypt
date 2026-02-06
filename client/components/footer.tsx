@@ -11,12 +11,12 @@ export default function Footer() {
             <div className="flex items-center space-x-2 mb-4">
               <Image
                 src="/logo.png"
-                alt="CryptoDotFun Logo"
+                alt="Krypt Logo"
                 width={24}
                 height={24}
                 className="rounded-md"
               />
-              <h3 className="text-lg font-bold crypto-gradient-text">CryptoDotFun</h3>
+              <h3 className="text-lg font-bold crypto-gradient-text">Krypt</h3>
             </div>
             <p className="text-sm text-muted-foreground">
               Your all-in-one crypto platform. Trade NFTs, explore Bitcoin assets, and manage your portfolio across multiple chains.
@@ -106,7 +106,7 @@ export default function Footer() {
           </div>
         </div>
         <div className="mt-8 border-t pt-8 text-center text-sm text-muted-foreground">
-          <p>© {new Date().getFullYear()} CryptoDotFun. All rights reserved.</p>
+          <p>© {new Date().getFullYear()} Krypt. All rights reserved.</p>
         </div>
       </div>
     </footer>

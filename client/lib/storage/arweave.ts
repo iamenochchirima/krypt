@@ -72,7 +72,7 @@ export class ArweaveUploader implements StorageUploader {
     const collReceipt = await this.uploader.upload(await this.fileToBuffer(collFile), {
       tags: [
         { name: "Content-Type", value: collFile.type || "image/png" },
-        { name: "App-Name", value: "CryptoDotFun" },
+        { name: "App-Name", value: "Krypt" },
         { name: "Type", value: "collection-image" },
       ],
     });
@@ -85,7 +85,7 @@ export class ArweaveUploader implements StorageUploader {
       const bannerReceipt = await this.uploader.upload(await this.fileToBuffer(bannerImage), {
         tags: [
           { name: "Content-Type", value: bannerImage.type || "image/png" },
-          { name: "App-Name", value: "CryptoDotFun" },
+          { name: "App-Name", value: "Krypt" },
           { name: "Type", value: "banner-image" },
         ],
       });
@@ -100,7 +100,7 @@ export class ArweaveUploader implements StorageUploader {
       const receipt = await this.uploader.upload(await this.fileToBuffer(file), {
         tags: [
           { name: "Content-Type", value: file.type || "image/png" },
-          { name: "App-Name", value: "CryptoDotFun" },
+          { name: "App-Name", value: "Krypt" },
           { name: "Type", value: "nft-image" },
           { name: "Index", value: String(i) },
         ],
@@ -129,7 +129,7 @@ export class ArweaveUploader implements StorageUploader {
       const receipt = await this.uploader.upload(this.objectToBuffer(metadata), {
         tags: [
           { name: "Content-Type", value: "application/json" },
-          { name: "App-Name", value: "CryptoDotFun" },
+          { name: "App-Name", value: "Krypt" },
           { name: "Type", value: "nft-metadata" },
           { name: "Index", value: String(i) },
         ],
@@ -153,7 +153,7 @@ export class ArweaveUploader implements StorageUploader {
     const manifestReceipt = await this.uploader.upload(this.objectToBuffer(manifest), {
       tags: [
         { name: "Content-Type", value: "application/json" },
-        { name: "App-Name", value: "CryptoDotFun" },
+        { name: "App-Name", value: "Krypt" },
         { name: "Type", value: "manifest" },
       ],
     });

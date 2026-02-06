@@ -111,12 +111,12 @@ export default function Navbar() {
           <Link href="/" className="flex items-center space-x-2">
             <Image
               src="/logo.png"
-              alt="CryptoDotFun Logo"
+              alt="Krypt Logo"
               width={32}
               height={32}
               className="rounded-md"
             />
-            <span className="text-xl font-bold text-white">CryptoDotFun</span>
+            <span className="text-xl font-bold text-white">Krypt</span>
           </Link>
         </div>
 
