@@ -211,11 +211,6 @@ export default function BasicInfoStep() {
         </Button>
       </div>
 
-      {/* Debug info - remove in production */}
-      <div className="text-xs text-gray-500 mt-2">
-        Debug: Email valid: {isEmailValid ? "✓" : "✗"}, Email available: {emailAvailable?.toString() || "null"}, Username valid: {isUsernameValid ? "✓" : "✗"}, Username available:{" "}
-        {usernameAvailable?.toString() || "null"}, Can continue: {canContinue ? "✓" : "✗"}
-      </div>
     </div>
   )
 }
